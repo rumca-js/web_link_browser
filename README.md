@@ -1,13 +1,17 @@
 # Offline Search
 
-Search that does not require Internet!
+Perform searches without requiring an Internet connection!
 
-# How to run?
+# How to run
 
-Just use the start script dummie!
+- Start the server by running the provided start script.
+- Once the server is running, open your browser and navigate to the following address:
+```
+http://localhost:8000/viewerzip.html
+```
 
-Once server has been started access the web server using address 
+# Example
 
-# localhost:8000/viewerzip.html
+You can view a live example of the application at this link:
 
-Running exmple is at [https://rumca-js.github.io](https://rumca-js.github.io/quickstart/public/static_lists/viewerzip.html)
+ - [https://rumca-js.github.io/quickstart/public/static_lists/viewerzip.html](https://rumca-js.github.io/quickstart/public/static_lists/viewerzip.html)
