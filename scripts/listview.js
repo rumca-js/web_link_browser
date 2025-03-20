@@ -2,6 +2,7 @@ let worker = null;
 let db = null;
 let object_list_data = null;
 let db_ready = false;
+let preparingData = false;
 
 let view_display_type = "search-engine";
 let view_show_icons = false;
@@ -61,6 +62,7 @@ function fillListDataInternal(entries) {
     var finished_text = getEntriesList(filtered_entries);
 
     $('#listData').html(finished_text);
+    console.log("Setting up pagination");
     $('#pagination').html(GetPaginationNav(page_num, countElements/page_size, countElements));
 }
 
@@ -139,6 +141,7 @@ function searchInputFunction() {
 
 
 async function Initialize() {
+    preparingData = true;
     let spinner_text_1 = getSpinnerText("Initializing - reading file");
     $("#statusLine").html(spinner_text_1);
     let fileBlob = requestFileChunks(getFileName());
@@ -148,7 +151,10 @@ async function Initialize() {
     let spinner_text_3 = getSpinnerText("Unpacking zip");
     $("#statusLine").html(spinner_text_3);
     await unPackFileJSONS(zip);
-    $("#statusLine").html("Initialized successfully");
+    $("#statusLine").html("");
+    preparingData = false;
+
+    fillListData();
 }
 
 
@@ -319,13 +325,5 @@ document.addEventListener('DOMContentLoaded', () => {
         catch {
             $("#statusLine").html("error");
         }
-    }
-});
-
-
-window.addEventListener("beforeunload", (event) => {
-    if (preparingData) {
-        event.preventDefault();
-        event.returnValue = ''; // This will trigger the default confirmation dialog
     }
 });
