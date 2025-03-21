@@ -1,16 +1,3 @@
-let worker = null;
-let db = null;
-let object_list_data = null;   // all objects lists
-let system_initialized = false;
-let user_age = 1;
-
-let view_display_type = "search-engine";
-let view_show_icons = false;
-let view_small_icons = false;
-let show_pure_links = true;
-let highlight_bookmarks = false;
-let sort_function = "-page_rating_votes"; // page_rating_votes, date_published
-let default_page_size = 200;
 
 
 function getFileName() {
@@ -25,6 +12,11 @@ function getFileName() {
         file_name = adir + file_name
 
     return file_name;
+}
+
+
+function animateToTop() {
+    $('html, body').animate({ scrollTop: 0 }, 'slow');
 }
 
 
@@ -107,10 +99,15 @@ function fillSearchListData(searchText) {
 
 function fillListData() {
     const userInput = $("#searchInput").val();
-    let file_name = getQueryParam('file') || "permanent";
+    let file_name = getQueryParam('file') || "";
 
     if (userInput.trim() != "") {
-        document.title = file_name + " / " + userInput;
+        if (file_name) {
+           document.title = file_name + " / " + userInput;
+	}
+        else {
+           document.title = " / " + userInput;
+        }
 
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set('search', userInput);
@@ -120,7 +117,9 @@ function fillListData() {
     }
     else
     {
-        document.title = file_name;
+        if (file_name) {
+           document.title = file_name;
+	}
         fillEntireListData();
     }
 }
@@ -140,6 +139,24 @@ function searchInputFunction() {
 }
 
 
+function setEntryAsListData(entry_id) {
+    let entry = getEntry(entry_id);
+    if (entry) {
+       let entry_detail_text = getEntryDetailText(entry);
+       let data = `<a href="" class="btn btn-primary go-back-button m-1">Go back</a>`;
+       data += `<a href="" class="btn btn-primary copy-link m-1">Copy Link</a>`;
+       data += entry_detail_text;
+       $("#listData").html(data);
+       $('#pagination').html("");
+
+       document.title = entry.title;
+    }
+    else {
+       $("#statusLine").html("Invalid entry");
+    }
+}
+
+
 async function Initialize() {
     system_initialized = false;
     let spinner_text_1 = getSpinnerText("Initializing - reading file");
@@ -154,7 +171,13 @@ async function Initialize() {
     $("#statusLine").html("");
     system_initialized = false;
 
-    fillListData();
+    let entry_id = getQueryParam("entry_id");
+    if (entry_id) {
+       setEntryAsListData(entry_id);
+    }
+    else {
+       fillListData();
+    }
 }
 
 
@@ -163,13 +186,12 @@ $(document).on('click', '.btnNavigation', function(e) {
     e.preventDefault();
 
     const currentPage = $(this).data('page');
+
     const currentUrl = new URL(window.location.href);
-
     currentUrl.searchParams.set('page', currentPage);
-
     window.history.pushState({}, '', currentUrl);
 
-    $('html, body').animate({ scrollTop: 0 }, 'slow');
+    animateToTop();
 
     fillListData();
 });
@@ -182,33 +204,38 @@ $(document).on('click', '.entry-list', function(e) {
     let entryNumber = $(this).attr('entry');
     console.log("Entry list:" + entryNumber);
 
-    let entry = getEntry(entryNumber);
-    if (entry) {
-       let entry_detail_text = getEntryDetailText(entry);
-       let data = `<a href="" class="btn btn-primary go-back-button m-1">Go back</a>`;
-       data += `<a href="" class="btn btn-primary copy-link m-1">Copy Link</a>`;
-       data += entry_detail_text;
-       $("#listData").html(data);
-       $('#pagination').html("");
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('entry_id', entryNumber);
+    window.history.pushState({}, '', currentUrl);
 
-       document.title = entry.title;
-    }
-    else {
-       $("#statusLine").html("Invalid entry");
-    }
+    setEntryAsListData(entryNumber);
+
+    animateToTop();
 });
 
 
 //-----------------------------------------------
 $(document).on('click', '.go-back-button', function(e) {
     e.preventDefault();
+
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.delete('entry_id')
+    window.history.pushState({}, '', currentUrl);
+
     fillListData();
 });
 
 
 //-----------------------------------------------
 $(document).on('click', '.copy-link', function(e) {
-    // TODO
+    e.preventDefault();
+    const url = window.location.href;
+
+    navigator.clipboard.writeText(url).then(() => {
+       $(this).html("Copied");
+    }).catch((err) => {
+       console.error("Error copying URL: ", err);
+    });
 });
 
 
@@ -364,10 +391,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('search');
-    view_show_icons = urlParams.get("view_show_icons") || false;
-    view_display_type = urlParams.get("view_display_type") || "search-engine";
-    sort_function = urlParams.get('order') || "-page_rating_votes";
-    default_page_size = parseInt(urlParams.get('default_page_size'), 10) || 100;
+
+    if (urlParams.has("view_show_icons")) {
+        view_show_icons = urlParams.get("view_show_icons");
+    }
+    if (urlParams.has("view_display_type")) {
+        view_display_type = urlParams.get("view_display_type");
+    }
+    if (urlParams.has("order")) {
+        sort_function = urlParams.get('order');
+    }
+
+    if (urlParams.has("default_page_size")) {
+        default_page_size = parseInt(urlParams.get('default_page_size'), 10);
+    }
 
     if (searchParam) {
         searchInput.value = searchParam;
