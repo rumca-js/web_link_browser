@@ -1,4 +1,7 @@
 
+let all_entries = null;
+let entries_length = 0;
+
 
 function getFileName() {
     let file_name = getQueryParam('file') || getDefaultFileName();
@@ -17,6 +20,14 @@ function getFileName() {
 
 function animateToTop() {
     $('html, body').animate({ scrollTop: 0 }, 'slow');
+}
+
+
+function isWorkerNeeded(fileName) {
+    if (fileName.indexOf("db") != -1 || fileName.indexOf("db.zip") != -1) {
+        return true;
+    }
+    return false;
 }
 
 
@@ -40,22 +51,9 @@ function fillEntireListData() {
 
 
 function fillListDataInternal(entries) {
-    entries = sortEntries(entries);
-
-    let page_num = parseInt(getQueryParam("page")) || 1;
-    let page_size = default_page_size;
-    let countElements = entries.length;
-
-    let start_index = (page_num-1) * page_size;
-    let end_index = page_num * page_size;
-
-    let filtered_entries = entries.slice(start_index, end_index);
-
-    var finished_text = getEntriesList(filtered_entries);
+    var finished_text = getEntriesList(entries);
 
     $('#listData').html(finished_text);
-    console.log("Setting up pagination");
-    $('#pagination').html(GetPaginationNav(page_num, countElements/page_size, countElements));
 }
 
 
@@ -68,74 +66,94 @@ function filterEntries(entries, searchText) {
 }
 
 
-function fillSearchListData(searchText) {
-    let data = object_list_data;
-
-    $('#listData').html("");
-
-    let entries = data.entries;
-
-    if (!entries || entries.length == 0) {
-        $('#statusLine').html("No entries found");
-        $('#listData').html("");
-        $('#pagination').html("");
-        return;
-    }
-
-    $('#statusLine').html("Filtering links");
-    let filteredEntries = filterEntries(entries, searchText);
-
-    if (filteredEntries.length === 0) {
-        $('#statusLine').html("No matching entries found.");
-        $('#listData').html("");
-        $('#pagination').html("");
-        return;
-    }
-
-    fillListDataInternal(filteredEntries);
-    $('#statusLine').html("")
-}
-
-
 function fillListData() {
-    const userInput = $("#searchInput").val();
-    let file_name = getQueryParam('file') || "";
-
-    if (userInput.trim() != "") {
-        if (file_name) {
-           document.title = file_name + " / " + userInput;
-	}
-        else {
-           document.title = " / " + userInput;
-        }
-
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('search', userInput);
-        window.history.pushState({}, '', currentUrl);
-
-        fillSearchListData(userInput);
-    }
-    else
-    {
-        if (file_name) {
-           document.title = file_name;
-	}
-        fillEntireListData();
-    }
+   fillEntireListData();
 }
 
 
-function searchInputFunction() {
-    if (system_initialized) {
+
+function getPaginationText() {
+    let page_num = parseInt(getQueryParam("page")) || 1;
+    let page_size = default_page_size;
+    let countElements = entries_length;
+
+    return GetPaginationNav(page_num, countElements/page_size, countElements);
+}
+
+
+function sortAndFilter() {
+    const search_text = $("#searchInput").val();
+
+    let entries = all_entries.entries;
+
+    entries = sortEntries(entries);
+
+    if (search_text != "") {
+       entries = filterEntries(entries, search_text);
+    }
+
+    entries_length = entries.length;
+
+    let page_num = parseInt(getQueryParam("page")) || 1;
+    let page_size = default_page_size;
+
+    let start_index = (page_num-1) * page_size;
+    let end_index = page_num * page_size;
+
+    object_list_data.entries = entries.slice(start_index, end_index);
+}
+
+
+function searchInputFunctionJSON() {
+    if (!system_initialized) {
         $("#statusLine").html(`<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Reading data...`);
         return;
     }
 
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('page', 1);
-    window.history.pushState({}, '', currentUrl);
+    sortAndFilter();
 
     fillListData();
+
+    $('#pagination').html(getPaginationText());
+}
+
+
+function searchInputFunctionDb() {
+    if (!worker) {
+        $('#statusLine').html("Worker problem");
+        return;
+    }
+    if (!system_initialized) {
+        $('#statusLine').html("Cannot make query - database is not ready");
+    }
+
+    let spinner_text = getSpinnerText("Searching");
+    $('#statusLine').html(spinner_text);
+
+    let query = getQueryText();
+    worker.postMessage({ query });
+    console.log("Sent message: " + query);
+}
+
+
+function searchInputFunction() {
+    const userInput = $("#searchInput").val();
+    let file_name = getFileName();
+
+    if (userInput.trim() != "") {
+        document.title = userInput;
+    }
+
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('search', userInput);
+    window.history.pushState({}, '', currentUrl);
+
+    if (isWorkerNeeded(file_name)) {
+       return searchInputFunctionDb();
+    }
+    else {
+       return searchInputFunctionJSON();
+    }
 }
 
 
@@ -157,26 +175,111 @@ function setEntryAsListData(entry_id) {
 }
 
 
-async function Initialize() {
-    system_initialized = false;
-    let spinner_text_1 = getSpinnerText("Initializing - reading file");
-    $("#statusLine").html(spinner_text_1);
-    let fileBlob = requestFileChunks(getFileName());
-    let spinner_text_2 = getSpinnerText("Loading zip");
-    $("#statusLine").html(spinner_text_2);
-    const zip = await JSZip.loadAsync(fileBlob);
-    let spinner_text_3 = getSpinnerText("Unpacking zip");
-    $("#statusLine").html(spinner_text_3);
-    await unPackFileJSONS(zip);
-    $("#statusLine").html("");
-    system_initialized = false;
+async function InitializeForDb() {
+  if (!object_list_data) {
+    if (!worker) {
+       initWorker();
+    }
+  }
+}
 
-    let entry_id = getQueryParam("entry_id");
-    if (entry_id) {
-       setEntryAsListData(entry_id);
+
+async function InitializeForJSON() {
+   let file_name = getFileName();
+   system_initialized = false;
+   let spinner_text_1 = getSpinnerText("Initializing - reading file");
+   $("#statusLine").html(spinner_text_1);
+   let fileBlob = requestFileChunks(file_name);
+   let spinner_text_2 = getSpinnerText("Loading zip");
+   $("#statusLine").html(spinner_text_2);
+   const zip = await JSZip.loadAsync(fileBlob);
+   let spinner_text_3 = getSpinnerText("Unpacking zip");
+   $("#statusLine").html(spinner_text_3);
+   await unPackFileJSONS(zip);
+   $("#statusLine").html("");
+
+   all_entries = { ...object_list_data };
+
+   onSystemReady();
+
+   let entry_id = getQueryParam("entry_id");
+   if (entry_id) {
+      setEntryAsListData(entry_id);
+   }
+   else {
+      sortAndFilter();
+
+      fillListData();
+
+      $('#pagination').html(getPaginationText());
+   }
+}
+
+
+function onSystemReady() {
+    system_initialized = true;
+    $('#searchInput').prop('disabled', false);
+    $('#statusLine').html("System is ready! You can perform search now");
+}
+
+
+async function initWorker() {
+    console.log("Init worker");
+    let spinner_text = getSpinnerText("Initializing worker");
+    $('#statusLine').html(spinner_text);
+
+    worker = new Worker('scripts/dbworker.js?i=' + getQueryParam("i"));
+
+    let file_name = getFileName();
+
+    worker.postMessage({ fileName:  file_name});
+
+    worker.onmessage = function (e) {
+        const { success, message_type, result, error } = e.data;
+        if (success) {
+            if (message_type == "entries") {
+                 object_list_data = result;
+                 fillListData();
+            }
+            else if (message_type == "pagination") {
+                 let total_rows = result;
+
+                 entries_length = total_rows;
+
+                 let nav_text = getPaginationText();
+
+                 $('#pagination').html(nav_text);
+                 $('#statusLine').html("");
+            }
+            else if (message_type == "message") {
+                 if (result == "Creating database DONE") {
+                    onSystemReady();
+                 }
+                 else {
+                    let new_spinner_text = getSpinnerText(result);
+                    $('#statusLine').html(new_spinner_text);
+                 }
+            }
+        } else {
+            $('#statusLine').html('Worker error: '+ error);
+            console.error('Worker error:', error);
+        }
+    };
+    console.log("Init worker done");
+    $('#statusLine').html("");
+}
+
+
+async function Initialize() {
+    let file_name = getFileName();
+
+    $('#searchInput').prop('disabled', true);
+
+    if (isWorkerNeeded(file_name)) {
+       return await InitializeForDb();
     }
     else {
-       fillListData();
+       return await InitializeForJSON();
     }
 }
 
@@ -193,7 +296,7 @@ $(document).on('click', '.btnNavigation', function(e) {
 
     animateToTop();
 
-    fillListData();
+    searchInputFunction();
 });
 
 
@@ -223,6 +326,7 @@ $(document).on('click', '.go-back-button', function(e) {
     window.history.pushState({}, '', currentUrl);
 
     fillListData();
+    $('#pagination').html(getPaginationText());
 });
 
 
@@ -240,25 +344,12 @@ $(document).on('click', '.copy-link', function(e) {
 
 
 //-----------------------------------------------
-$(document).on('click', '.entry-detail', function(e) {
-    e.preventDefault();
-
-    let entryNumber = $(this).attr('entry');
-    console.log("Entry detail:" + entryNumber);
-
-    let entry = getEntry(entryNumber);
-    if (entry) {
-       let entry_detail_text = getEntryListText(entry);
-       $(this).html(entry_detail_text);
-    }
-    else {
-       $("#statusLine").html("Invalid entry");
-    }
-});
-
-
-//-----------------------------------------------
 $(document).on('click', '#searchButton', function(e) {
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.delete('page')
+    currentUrl.searchParams.delete('search')
+    window.history.pushState({}, '', currentUrl);
+
     searchInputFunction();
 });
 
@@ -290,6 +381,11 @@ $(document).on('keydown', "#searchInput", function(e) {
     if (e.key === "Enter") {
         e.preventDefault();
 
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.delete('page')
+        currentUrl.searchParams.delete('search')
+        window.history.pushState({}, '', currentUrl);
+
         searchInputFunction();
     }
 });
@@ -317,19 +413,19 @@ $(document).on('click', '#orderByVotes', function(e) {
         window.history.pushState({}, '', currentUrl);
     }
 
-    fillListData();
+    searchInputFunction();
 });
 
 
 //-----------------------------------------------
 $(document).on('click', '#orderByDatePublished', function(e) {
-    if (sort_function == "date_published")
+    if (sort_function == "-date_published")
     {
-        sort_function = "-date_published";
+        sort_function = "date_published";
     }
     else
     {
-        sort_function = "date_published";
+        sort_function = "-date_published";
     }
 
     if (sort_function != "-page_rating_votes") {
@@ -343,7 +439,7 @@ $(document).on('click', '#orderByDatePublished', function(e) {
         window.history.pushState({}, '', currentUrl);
     }
 
-    fillListData();
+    searchInputFunction();
 });
 
 
