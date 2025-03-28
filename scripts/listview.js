@@ -110,11 +110,18 @@ function searchInputFunctionJSON() {
         return;
     }
 
-    sortAndFilter();
+    let entry_id = getQueryParam("entry_id");
 
-    fillListData();
+    if (entry_id) {
+       setEntryIdAsListData(entry_id);
+    }
+    else {
+       sortAndFilter();
 
-    $('#pagination').html(getPaginationText());
+       fillListData();
+
+       $('#pagination').html(getPaginationText());
+    }
 }
 
 
@@ -157,8 +164,13 @@ function searchInputFunction() {
 }
 
 
-function setEntryAsListData(entry_id) {
+function setEntryIdAsListData(entry_id) {
     let entry = getEntry(entry_id);
+    setEntryAsListData(entry);
+}
+
+
+function setEntryAsListData(entry) {
     if (entry) {
        let entry_detail_text = getEntryDetailText(entry);
        let data = `<a href="" class="btn btn-primary go-back-button m-1">Go back</a>`;
@@ -199,16 +211,12 @@ async function InitializeForJSON() {
    $("#statusLine").html("");
 
    all_entries = { ...object_list_data };
+   sortAndFilter();
 
    onSystemReady();
 
    let entry_id = getQueryParam("entry_id");
-   if (entry_id) {
-      setEntryAsListData(entry_id);
-   }
-   else {
-      sortAndFilter();
-
+   if (!entry_id) {
       fillListData();
 
       $('#pagination').html(getPaginationText());
@@ -219,7 +227,57 @@ async function InitializeForJSON() {
 function onSystemReady() {
     system_initialized = true;
     $('#searchInput').prop('disabled', false);
-    $('#statusLine').html("System is ready! You can perform search now");
+
+   let entry_id = getQueryParam("entry_id");
+   if (entry_id) {
+      searchInputFunction();
+   }
+   else {
+      $('#statusLine').html("System is ready! You can perform search now");
+   }
+}
+
+
+function workerFunction(e) {
+    const { success, message_type, result, error } = e.data;
+    if (success) {
+        if (message_type == "entries") {
+             let entry_id = getQueryParam("entry_id");
+
+             if (!entry_id) {
+                object_list_data = result;
+                fillListData();
+	     }
+             else {
+                object_list_data = result;
+		if (object_list_data.entries.length > 0) {
+                     setEntryAsListData(object_list_data.entries[0]);
+		}
+	     }
+        }
+        else if (message_type == "pagination") {
+             let total_rows = result;
+
+             entries_length = total_rows;
+
+             let nav_text = getPaginationText();
+
+             $('#pagination').html(nav_text);
+             $('#statusLine').html("");
+        }
+        else if (message_type == "message") {
+             if (result == "Creating database DONE") {
+                onSystemReady();
+             }
+             else {
+                let new_spinner_text = getSpinnerText(result);
+                $('#statusLine').html(new_spinner_text);
+             }
+        }
+    } else {
+        $('#statusLine').html('Worker error: '+ error);
+        console.error('Worker error:', error);
+    }
 }
 
 
@@ -228,43 +286,13 @@ async function initWorker() {
     let spinner_text = getSpinnerText("Initializing worker");
     $('#statusLine').html(spinner_text);
 
-    worker = new Worker('scripts/dbworker.js?i=' + getQueryParam("i"));
+    worker = new Worker('scripts/dbworker.js?i=' + getSystemVersion());
 
     let file_name = getFileName();
 
     worker.postMessage({ fileName:  file_name});
 
-    worker.onmessage = function (e) {
-        const { success, message_type, result, error } = e.data;
-        if (success) {
-            if (message_type == "entries") {
-                 object_list_data = result;
-                 fillListData();
-            }
-            else if (message_type == "pagination") {
-                 let total_rows = result;
-
-                 entries_length = total_rows;
-
-                 let nav_text = getPaginationText();
-
-                 $('#pagination').html(nav_text);
-                 $('#statusLine').html("");
-            }
-            else if (message_type == "message") {
-                 if (result == "Creating database DONE") {
-                    onSystemReady();
-                 }
-                 else {
-                    let new_spinner_text = getSpinnerText(result);
-                    $('#statusLine').html(new_spinner_text);
-                 }
-            }
-        } else {
-            $('#statusLine').html('Worker error: '+ error);
-            console.error('Worker error:', error);
-        }
-    };
+    worker.onmessage = workerFunction;
     console.log("Init worker done");
     $('#statusLine').html("");
 }
@@ -281,6 +309,15 @@ async function Initialize() {
     else {
        return await InitializeForJSON();
     }
+}
+
+
+function resetParams() {
+   const currentUrl = new URL(window.location.href);
+   currentUrl.searchParams.delete('page')
+   currentUrl.searchParams.delete('search')
+   currentUrl.searchParams.delete('entry_id')
+   window.history.pushState({}, '', currentUrl);
 }
 
 
@@ -302,6 +339,10 @@ $(document).on('click', '.btnNavigation', function(e) {
 
 //-----------------------------------------------
 $(document).on('click', '.entry-list', function(e) {
+    if (e.ctrlKey) {
+        return;
+    }
+
     e.preventDefault();
 
     let entryNumber = $(this).attr('entry');
@@ -311,7 +352,7 @@ $(document).on('click', '.entry-list', function(e) {
     currentUrl.searchParams.set('entry_id', entryNumber);
     window.history.pushState({}, '', currentUrl);
 
-    setEntryAsListData(entryNumber);
+    setEntryIdAsListData(entryNumber);
 
     animateToTop();
 });
@@ -345,10 +386,7 @@ $(document).on('click', '.copy-link', function(e) {
 
 //-----------------------------------------------
 $(document).on('click', '#searchButton', function(e) {
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.delete('page')
-    currentUrl.searchParams.delete('search')
-    window.history.pushState({}, '', currentUrl);
+    resetParams();
 
     searchInputFunction();
 });
@@ -358,6 +396,7 @@ $(document).on('click', '#searchButton', function(e) {
 $(document).on('click', '#helpButton', function(e) {
     $("#helpPlace").toggle();
 });
+
 
 $(document).on('click', '#homeButton', function(e) {
     let file_name = getQueryParam('file') || "permanent";
@@ -369,10 +408,7 @@ $(document).on('click', '#homeButton', function(e) {
     $('#listData').html("");
     $('#pagination').html("");
 
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.delete('page')
-    currentUrl.searchParams.delete('search')
-    window.history.pushState({}, '', currentUrl);
+    resetParams();
 });
 
 
@@ -381,10 +417,7 @@ $(document).on('keydown', "#searchInput", function(e) {
     if (e.key === "Enter") {
         e.preventDefault();
 
-        const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.delete('page')
-        currentUrl.searchParams.delete('search')
-        window.history.pushState({}, '', currentUrl);
+        resetParams();
 
         searchInputFunction();
     }

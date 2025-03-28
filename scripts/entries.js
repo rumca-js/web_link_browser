@@ -115,6 +115,123 @@ function getDeadBadge(entry, overflow=false) {
  */
 
 
+function EntryToArchiveOrg(entry) {
+    let link = entry.link;
+
+    let currentDate = new Date();
+    let formattedDate = currentDate.toISOString().split('T')[0].replace(/-/g, ''); // Format: YYYYMMDD
+
+    return `https://web.archive.org/web/${formattedDate}000000*/${link}`;
+}
+
+
+function EntryToW3CValidator(entry) {
+    let link = entry.link;
+
+    return `https://validator.w3.org/nu/?doc=${encodeURIComponent(link)}`;
+}
+
+
+function EntryToSchemaValidator(entry) {
+    let link = entry.link;
+
+    return `https://validator.schema.org/#url=${encodeURIComponent(link)}`;
+}
+
+
+function EntryToWhoIs(entry) {
+    let link = entry.link;
+    let domain = link.replace(/^https?:\/\//, ''); // Remove 'http://' or 'https://'
+
+    return `https://who.is/whois/${domain}`;
+}
+
+
+function EntryToTranslate(entry) {
+    let link = entry.link;
+
+    let reminder = '?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp';
+    if (link.indexOf("http://") != -1) {
+       reminder = '?_x_tr_sch=http&_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp';
+    }
+
+    if (link.indexOf("?") != -1) {
+        let queryParams = link.split("?")[1];
+        reminder += '&' + queryParams;
+    }
+
+    let domain = link.replace(/^https?:\/\//, '').split('/')[0]; // Extract the domain part
+
+    domain = domain.replace(/-/g, '--').replace(/\./g, '-');
+
+    let translateUrl = `https://${domain}.translate.goog/` + reminder;
+
+    return translateUrl;
+}
+
+
+function GetEditMenu(entry) {
+    let link = entry.link;
+
+    let translate_link = EntryToTranslate(entry);
+    let archive_link = EntryToArchiveOrg(entry);
+    let w3c_link = EntryToW3CValidator(entry);
+    let schema_link = EntryToSchemaValidator(entry);
+    let who_is_link = EntryToWhoIs(entry);
+
+    let text = 
+    `<div class="dropdown">
+        <button class="btn btn-primary" type="button" id="#entryViewDrop" data-bs-toggle="dropdown" aria-expanded="false">
+          View
+        </button>
+        <ul class="dropdown-menu">`;
+
+    text += `
+        <li>
+          <a href="${translate_link}" id="Edit" class="dropdown-item" title="Edit entry">
+             View translate
+          </a>
+        </li>
+    `;
+
+    text += `
+        <li>
+          <a href="${archive_link}" id="Archive-org" class="dropdown-item" title="View archived version on archive.org">
+             View archive.org
+          </a>
+        </li>
+    `;
+
+    text += `
+        <li>
+          <a href="${w3c_link}" id="w3c-validator" class="dropdown-item" title="Edit entry">
+             W3C validator
+          </a>
+        </li>
+    `;
+
+    text += `
+        <li>
+          <a href="${schema_link}" id="Schama-Validator" class="dropdown-item" title="Edit entry">
+             Schema validator
+          </a>
+        </li>
+    `;
+
+    text += `
+        <li>
+          <a href="${who_is_link}" id="Who-Is" class="dropdown-item" title="Edit entry">
+             Who Is validator
+          </a>
+        </li>
+    `;
+
+    text += `</div>`;
+
+    return text;
+}
+
+
 function getEntryBodyText(entry) {
     let text = `
     <a href="${entry.link}"><h1>${entry.title}</h1></a>
@@ -141,17 +258,30 @@ function getEntryBodyText(entry) {
     <div>Points: ${entry.page_rating}|${entry.page_rating_votes}|${entry.page_rating_contents}</div>
     `;
 
-    if (entry.date_dead_since)
+    if (entry.date_dead_since) {
         text += `<div>Dead since:${entry.date_dead_since}</div>`;
+    }
 
     text += `
     <div>Author: ${entry.author}</div>
     <div>Album: ${entry.album}</div>
     <div>Status code: ${entry.status_code}</div>
-    <div>Manual status code: ${entry.manual_status_code}</div>
     <div>Permanent: ${entry.permanent}</div>
-    <div>Age: ${entry.age}</div>
     `;
+
+    if (entry.manual_status_code) {
+       text += `
+       <div>Manual status code: ${entry.manual_status_code}</div>
+       `;
+    }
+
+    if (entry.age) {
+       text += `
+       <div>Age: ${entry.age}</div>
+       `;
+    }
+
+    text += GetEditMenu(entry);
 
     return text;
 }
@@ -160,15 +290,17 @@ function getEntryBodyText(entry) {
 function getEntryFullTextStandard(entry) {
     let text = `<div entry="${entry.id}" class="entry-detail">`;
 
-    text += `
-    <div><img src="" style="max-width:100%;"/></div>
-    `;
-
-    if (canUserView(entry))
-    {
-       text = `
-       <div><img src="${entry.thumbnail}" style="max-width:100%;"/></div>
+    if (entry.thumbnail) {
+       text += `
+       <div><img src="" style="max-width:30%;"/></div>
        `;
+
+       if (canUserView(entry))
+       {
+          text = `
+          <div><img src="${entry.thumbnail}" style="max-width:30%;"/></div>
+          `;
+       }
     }
 
     text += getEntryBodyText(entry);
@@ -510,13 +642,23 @@ function getOneEntryEntryText(entry) {
     title = escapeHtml(entry.title)
 
     let title_safe = "";
-    if (entry.title_safe) {
-       title_safe = escapeHtml(entry.title_safe)
+    if (canUserView(entry)) {
+       if (entry.title_safe) {
+          title_safe = escapeHtml(entry.title_safe)
+       }
+       else
+       {
+          title_safe = escapeHtml(entry.title)
+       }
     }
-    else
-    {
-       title_safe = escapeHtml(entry.title)
+    else {
+       title_safe = "----Age limited----"
     }
+    if (title_safe.length > 200) {
+        title_safe = title_safe.substring(0, 200);
+        title_safe = title_safe + "...";
+    }
+
     let tags_text = getEntryTags(entry);
 
     let hover_title = title_safe + " " + tags_text;
