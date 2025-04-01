@@ -14,7 +14,9 @@ http://localhost:8000/search.html
 
 You can view a live example of the application at this link:
 
- - [https://rumca-js.github.io/search.html)
+ - https://rumca-js.github.io/search
+ - https://rumca-js.github.io/music
+ - https://rumca-js.github.io/bookmarks
 
 # Data
 
