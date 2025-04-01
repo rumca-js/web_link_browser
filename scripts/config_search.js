@@ -22,6 +22,18 @@ function getFileList() {
     return ["top.zip",
 	    "bookmarks.zip",
 	    "music.zip",
+	    "2024/01.zip",
+	    "2024/02.zip",
+	    "2024/03.zip",
+	    "2024/04.zip",
+	    "2024/05.zip",
+	    "2024/06.zip",
+	    "2024/07.zip",
+	    "2024/08.zip",
+	    "2024/09.zip",
+	    "2024/10.zip",
+	    "2024/11.zip",
+	    "2024/12.zip",
 	    "internet.db.zip",
     ];
 }
@@ -39,5 +51,5 @@ function getFileVersion() {
 
 
 function getSystemVersion() {
-    return "0.8";
+    return "0.9";
 }
