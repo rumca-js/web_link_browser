@@ -29,3 +29,7 @@ For example
  - https://github.com/rumca-js/RSS-Link-Database-2022
  - https://github.com/rumca-js/RSS-Link-Database-2021
  - https://github.com/rumca-js/RSS-Link-Database-2020
+
+# Deploy
+
+Just copy scripts and data into server, and run it. The software is in javascript, that is performed on the client's device.
