@@ -16,6 +16,8 @@ function escapeHtml(unsafe)
     if (unsafe == null)
         return "";
 
+    unsafe = String(unsafe);
+
     return unsafe
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
@@ -145,7 +147,204 @@ function parseDate(inputDate) {
 }
 
 
-/** functions **/
+class InputContent {
+  constructor(text) {
+    this.text = text;
+  }
+
+  htmlify() {
+    this.text = this.stripHtmlAttributes();
+    this.text = this.linkify("https://");
+    this.text = this.linkify("http://");
+    return this.text;
+  }
+
+  stripHtmlAttributes() {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(this.text, "text/html");
+
+    const walk = (node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        if (node.tagName.toLowerCase() === "a") {
+          const href = node.getAttribute("href");
+          node.getAttributeNames().forEach(attr => node.removeAttribute(attr));
+          if (href) node.setAttribute("href", href);
+        } else if (node.tagName.toLowerCase() === "img") {
+          const src = node.getAttribute("src");
+          node.getAttributeNames().forEach(attr => node.removeAttribute(attr));
+          if (src) node.setAttribute("src", src);
+        } else {
+          node.getAttributeNames().forEach(attr => node.removeAttribute(attr));
+        }
+      }
+      for (let child of node.childNodes) {
+        walk(child);
+      }
+    };
+
+    walk(doc.body);
+    return doc.body.innerHTML;
+  }
+
+  linkify(protocol = "https://") {
+    let text = this.text;
+
+    if (!text.includes(protocol)) {
+        return text;
+    }
+
+    let result = "";
+    let i = 0;
+
+    while (i < text.length) {
+        const pattern = new RegExp(`${protocol}\\S+(?![\\w.])`);
+        const match = text.slice(i).match(pattern);
+
+        if (match && match.index === 0) {
+            const url = match[0];
+            const precedingChars = text.slice(Math.max(0, i - 10), i);
+
+            if (!precedingChars.includes('<a href="') && !precedingChars.includes("<img")) {
+                result += `<a href="${url}">${url}</a>`;
+            } else {
+                result += url;
+            }
+
+            i += url.length;
+        } else {
+            result += text[i];
+            i += 1;
+        }
+    }
+
+    return result;
+  }
+}
+
+
+/**
+ * services
+ */
+
+
+function fixStupidGoogleRedirects(input_url) {
+    if (!input_url) {
+        return null;
+    }
+
+    if (input_url.includes("www.google.com/url")) {
+        const url = new URL(input_url);
+        let realURL = url.searchParams.get('q');
+        if (realURL) {
+            return realURL;
+        }
+        realURL = url.searchParams.get('url');
+        if (realURL) {
+            return realURL;
+        }
+        return input_url;
+    }
+
+    if (input_url.includes("www.youtube.com/redirect")) {
+        const url = new URL(input_url);
+        let redirectURL = url.searchParams.get('q');
+
+        if (redirectURL) {
+            return decodeURIComponent(redirectURL);
+        }
+        else {
+            return input_url;
+        }
+    }
+
+    return input_url;
+}
+
+
+function getYouTubeVideoId(url) {
+    try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname;
+
+        if (hostname.includes("youtu.be")) {
+            return urlObj.pathname.slice(1);
+        }
+
+        if (urlObj.searchParams.has("v")) {
+            return urlObj.searchParams.get("v");
+        }
+
+        const paths = urlObj.pathname.split("/");
+        const validPrefixes = ["embed", "shorts", "v"];
+        if (validPrefixes.includes(paths[1]) && paths[2]) {
+            return paths[2];
+        }
+
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+
+function getYouTubeChannelId(url) {
+    try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname;
+
+        if (urlObj.searchParams.has("channel_id")) {
+            return urlObj.searchParams.get("channel_id");
+        }
+
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+
+function getYouTubeChannelUrl(url) {
+    let id = getYouTubeChannelId(url);
+    if (id)
+        return `https://www.youtube.com/channel/${id}`;
+}
+
+
+function getYouTubeEmbedDiv(youtubeUrl) {
+    const videoId = getYouTubeVideoId(youtubeUrl);
+    if (videoId) {
+        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+        const frameHtml = `
+            <div class="youtube_player_container mb-4">
+                <iframe 
+                    src="${embedUrl}" 
+                    frameborder="0" 
+                    allowfullscreen 
+                    class="youtube_player_frame w-100" 
+                    style="aspect-ratio: 16 / 9;"
+                    referrerpolicy="no-referrer-when-downgrade">
+                </iframe>
+            </div>
+        `;
+        return frameHtml;
+    }
+}
+
+
+function getChannelUrl(url) {
+    let channelid = null;
+    if (!url)
+        return;
+
+    channelid = getYouTubeChannelUrl(url);
+    if (channelid)
+        return channelid;
+}
+
+
+/**
+ Specific
+*/
 
 
 function setLightMode() {
@@ -430,90 +629,4 @@ async function requestFileChunksMultipart(file_name) {
     let chunks = await getFilePartsList(file_name);
 
     return await requestFileChunksFromList(chunks);
-}
-
-
-/**
- * services
- */
-
-
-function fixStupidGoogleRedirects(input_url) {
-    if (!input_url) {
-        return null;
-    }
-
-    if (input_url.includes("www.google.com/url")) {
-        const url = new URL(input_url);
-        let realURL = url.searchParams.get('q');
-        if (realURL) {
-            return realURL;
-        }
-        realURL = url.searchParams.get('url');
-        if (realURL) {
-            return realURL;
-        }
-        return input_url;
-    }
-
-    if (input_url.includes("www.youtube.com/redirect")) {
-        const url = new URL(input_url);
-        let redirectURL = url.searchParams.get('q');
-
-        if (redirectURL) {
-            return decodeURIComponent(redirectURL);
-        }
-        else {
-            return input_url;
-        }
-    }
-
-    return input_url;
-}
-
-
-function getYouTubeVideoId(url) {
-    try {
-        const urlObj = new URL(url);
-        const hostname = urlObj.hostname;
-
-        if (hostname.includes("youtu.be")) {
-            return urlObj.pathname.slice(1);
-        }
-
-        if (urlObj.searchParams.has("v")) {
-            return urlObj.searchParams.get("v");
-        }
-
-        const paths = urlObj.pathname.split("/");
-        const validPrefixes = ["embed", "shorts", "v"];
-        if (validPrefixes.includes(paths[1]) && paths[2]) {
-            return paths[2];
-        }
-
-        return null;
-    } catch (e) {
-        return null;
-    }
-}
-
-
-function getYouTubeEmbedDiv(youtubeUrl) {
-    const videoId = getYouTubeVideoId(youtubeUrl);
-    if (videoId) {
-        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-        const frameHtml = `
-            <div class="youtube_player_container mb-4">
-                <iframe 
-                    src="${embedUrl}" 
-                    frameborder="0" 
-                    allowfullscreen 
-                    class="youtube_player_frame w-100" 
-                    style="aspect-ratio: 16 / 9;"
-                    referrerpolicy="no-referrer-when-downgrade">
-                </iframe>
-            </div>
-        `;
-        return frameHtml;
-    }
 }
