@@ -6,11 +6,15 @@
 
 
 function isStatusCodeValid(entry) {
-    if (entry.status_code >= 200 && entry.status_code <= 400)
+    if (entry.status_code >= 200 && entry.status_code < 400)
         return true;
 
     // unknown status is valid (undetermined, not invalid)
     if (entry.status_code == 0)
+        return true;
+
+    // user agent, means that something is valid, but behind paywall
+    if (entry.status_code == 403)
         return true;
 
     return false;
@@ -25,7 +29,7 @@ function isEntryValid(entry) {
 
 
 function getEntryLink(entry) {
-    return show_pure_links ? entry.link : `?entry_id=${entry.id}`;
+    return entries_direct_links ? entry.link : `?entry_id=${entry.id}`;
 }
 
 
@@ -62,7 +66,7 @@ function getEntryVotesBadge(entry, overflow=false) {
     }
 
     let badge_text = entry.page_rating_votes > 0 ? `
-        <span class="badge text-bg-warning" style="${style}">
+        <span class="badge text-bg-warning" style="${style}" title="User vote">
             ${entry.page_rating_votes}
         </span>` : '';
 
@@ -77,7 +81,7 @@ function getEntryBookmarkBadge(entry, overflow=false) {
     }
 
     let badge_star = entry.bookmarked ? `
-        <span class="badge text-bg-warning" style="${style}">
+        <span class="badge text-bg-warning" style="${style}" title="Bookmarked">
             ★
         </span>` : '';
     return badge_star;
@@ -91,7 +95,7 @@ function getEntryAgeBadge(entry, overflow=false) {
     }
 
     let badge_text = entry.age > 0 ? `
-        <span class="badge text-bg-warning" style="${style}">
+        <span class="badge text-bg-warning" style="${style}" title="Age limit">
             A
         </span>` : '';
     return badge_text;
@@ -105,19 +109,99 @@ function getEntryDeadBadge(entry, overflow=false) {
     }
 
     let badge_text = entry.date_dead_since ? `
-        <span class="badge text-bg-warning" style="${style}">
+        <span class="badge text-bg-warning" style="${style}" title="Dead">
            💀
         </span>` : '';
     return badge_text;
 }
 
 
-function getEntryTags(entry) {
-    let tags_text = "";
-    if (entry.tags && entry.tags.length > 0) {
-        tags_text = entry.tags.map(tag => `#${tag}`).join(",");
+function getEntryReadLaterBadge(entry, overflow=false) {
+    let style = "font-size: 0.8rem;"
+    if (overflow) {
+        style = "position: absolute; top: 30px; right: 60px;" + style;
     }
-    return tags_text;
+
+    let badge_text = entry.read_later ? `
+        <span class="badge text-bg-warning" style="${style}" title="Check Later">
+           L
+        </span>` : '';
+    return badge_text;
+}
+
+
+function getEntryVisitedBadge(entry, overflow=false) {
+    let style = "font-size: 0.8rem;"
+    if (overflow) {
+        style = "position: absolute; top: 30px; right: 60px;" + style;
+    }
+
+    let badge_text = entry.visited ? `
+        <span class="badge text-bg-warning" style="${style}" title="Visited">
+           V
+        </span>` : '';
+    return badge_text;
+}
+
+
+function getEntrySocialDataText(data) {
+   let html_out = "";
+
+   let { thumbs_up, thumbs_down, view_count, upvote_ratio, upvote_diff, upvote_view_ratio, stars, followers_count } = data;
+
+   if (thumbs_up != null && thumbs_down != null && view_count != null) {
+      if (thumbs_up != null) html_out += `<span class="text-nowrap mx-1">👍${getHumanReadableNumber(thumbs_up)}</span>`;
+      if (thumbs_down != null) html_out += `<span class="text-nowrap mx-1">👎${getHumanReadableNumber(thumbs_down)}</span>`;
+      if (view_count != null) html_out += `<span class="text-nowrap mx-1">👁${getHumanReadableNumber(view_count)}</span>`;
+   }
+   else {
+      if (thumbs_up != null) html_out += `<span class="text-nowrap mx-1">👍${getHumanReadableNumber(thumbs_up)}</span>`;
+      if (thumbs_down != null) html_out += `<span class="text-nowrap mx-1">👎${getHumanReadableNumber(thumbs_down)}</span>`;
+      if (view_count != null) html_out += `<span class="text-nowrap mx-1">👁${getHumanReadableNumber(view_count)}</span>`;
+      if (stars != null) html_out += `<span class="text-nowrap mx-1">⭐${getHumanReadableNumber(stars)}</span>`;
+      if (followers_count != null) html_out += `<span class="text-nowrap mx-1">👥${getHumanReadableNumber(followers_count)}</span>`;
+    
+      if (upvote_diff != null) html_out += `<span class="text-nowrap mx-1">👍-👎${getHumanReadableNumber(upvote_diff)}</span>`;
+      if (upvote_ratio != null) html_out += `<span class="text-nowrap mx-1">👍/👎${parseFloat(upvote_ratio).toFixed(2)}</span>`;
+      if (upvote_view_ratio != null) html_out += `<span class="text-nowrap mx-1">👍/👁${parseFloat(upvote_view_ratio).toFixed(2)}</span>`;
+   }
+
+   return html_out;
+}
+
+
+function FillSocialData(entry_id, social_data) {
+    let entry_parameters = getEntrySocialDataText(social_data);
+
+    // entry_list_social.set(entry.id, entry_parameters);
+
+    let upvote_ratio_div = `<div>${entry_parameters}</div>`;
+
+    $(`[entry="${entry_id}"] [entryDetails="true"]`).append(upvote_ratio_div);
+}
+
+
+function getEntryParameters(entry, entry_dislike_data=null) {
+   html_out = "";
+
+   let date_published = getEntryDatePublished(entry);
+
+   html_out += `<span class="text-nowrap d-flex flex-wrap" id="entryParameters"><strong>Publish date:</strong> ${date_published}</span>`;
+
+   html_out += getEntryBookmarkBadge(entry);
+   html_out += getEntryVotesBadge(entry);
+   html_out += getEntryAgeBadge(entry);
+   html_out += getEntryDeadBadge(entry);
+   html_out += getEntryReadLaterBadge(entry);
+
+   if (entry_dislike_data) {
+      html_out += getEntrySocialDataText(entry_dislike_data);
+   }
+   else {
+      html_out += getEntrySocialDataText(entry);
+   }
+
+   return html_out;
 }
 
 
@@ -191,6 +275,19 @@ function getEntryDatePublished(entry) {
 }
 
 
+function getEntryDate(date_string) {
+    let datePublishedStr = "";
+    if (date_string) {
+        let datePublished = new Date(date_string);
+        if (!isNaN(datePublished)) {
+            datePublishedStr = parseDate(datePublished);
+        }
+    }
+
+    return datePublishedStr;
+}
+
+
 function getEntryTitleSafe(entry) {
     let title_safe = "";
 
@@ -216,22 +313,6 @@ function getEntryTitleSafe(entry) {
 }
 
 
-function getEntryParameters(entry) {
-   html_out = "";
-
-   let date_published = getEntryDatePublished(entry);
-
-   html_out += `<div class="text-nowrap"><strong>Publish date:</strong> ${date_published}</div>`;
-
-   html_out += getEntryBookmarkBadge(entry);
-   html_out += getEntryVotesBadge(entry);
-   html_out += getEntryAgeBadge(entry);
-   html_out += getEntryDeadBadge(entry);
-
-   return html_out;
-}
-
-
 function getEntryDescription(entry) {
   if (!entry.description)
     return "";
@@ -244,131 +325,209 @@ function getEntryDescription(entry) {
 }
 
 
+function getEntryDescriptionSafe(entry) {
+  if (!entry.description)
+    return "";
+
+  let content = new InputContent(entry.description);
+  let content_text = content.nohtml();
+
+  content = new InputContent(content_text);
+  content_text = content.noattrs();
+
+  content = new InputContent(content_text);
+  content_text = content.linkify();
+
+  if (entry.thumbnail != null) {
+    content = new InputContent(content_text);
+    content_text = content.removeImgs(entry.thumbnail);
+  }
+
+  content_text = content_text.replace(/(\r\n|\r|\n)/g, "<br>");
+  return content_text;
+}
+
+
 /**
  * Detail view
  */
 
 
-function getArchiveOrgLink(link) {
-    let currentDate = new Date();
-    let formattedDate = currentDate.toISOString().split('T')[0].replace(/-/g, ''); // Format: YYYYMMDD
+function getEntryDetailText(entry) {
+    let text = getEntryDetailPreview(entry);
 
-    return `https://web.archive.org/web/${formattedDate}000000*/${link}`;
+    text += getEntryBodyText(entry);
+
+    text += "</div>";
+
+    return text;
 }
 
 
-function getW3CValidatorLink(link) {
-    return `https://validator.w3.org/nu/?doc=${encodeURIComponent(link)}`;
+function getEntryDetailPreview(entry) {
+    let handler_yt = new YouTubeVideoHandler(entry.link);
+    let handler_od = new OdyseeVideoHandler(entry.link);
+
+    if (handler_yt.isHandledBy())
+    {
+        return getEntryDetailYouTubePreview(entry);
+    }
+    else if (handler_od.isHandledBy())
+    {
+        return getEntryDetailOdyseePreview(entry);
+    }
+    return getEntryDetailThumbnailPreview(entry);
 }
 
 
-function getSchemaValidatorLink(link) {
-    return `https://validator.schema.org/#url=${encodeURIComponent(link)}`;
-}
+function getEntryBodyText(entry) {
+    let date_published = parseDate(entry.date_published);
+    let parameters = getEntryParameters(entry);
 
+    let text = `
+    <a href="${entry.link}"><h1>${entry.title}</h1></a>
+    <div><a href="${entry.link}">${entry.link}</a></div>
+    ${parameters}
+    `;
 
-function getWhoIsLink(link) {
-    let domain = link.replace(/^https?:\/\//, ''); // Remove 'http://' or 'https://'
-
-    return `https://who.is/whois/${domain}`;
-}
-
-
-function getBuiltWithLink(link) {
-    let domain = link.replace(/^https?:\/\//, ''); // Remove 'http://' or 'https://'
-
-    return `https://builtwith.com/${domain}`;
-}
-
-
-function getGoogleTranslateLink(link) {
-
-    let reminder = '?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp';
-    if (link.indexOf("http://") != -1) {
-       reminder = '?_x_tr_sch=http&_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en&_x_tr_pto=wapp';
+    let tags_text = getEntryTagStrings(entry);
+    
+    if (tags_text) {
+       text += `
+           <div>Tags: ${tags_text}</div>
+       `;
     }
 
-    if (link.indexOf("?") != -1) {
-        let queryParams = link.split("?")[1];
-        reminder += '&' + queryParams;
-    }
+    text += getViewMenu(entry);
 
-    let domain = link.replace(/^https?:\/\//, '').split('/')[0]; // Extract the domain part
+    let description = getEntryDescriptionSafe(entry);
 
-    domain = domain.replace(/-/g, '--').replace(/\./g, '-');
+    text += `
+    <div>${description}</div>
+    `;
 
-    let translateUrl = `https://${domain}.translate.goog/` + reminder;
+    text += getEntryOpParameters(entry);
 
-    return translateUrl;
+    return text;
 }
 
 
-function GetEditMenu(entry) {
+function getEntryDetailTags(entry) {
+   tag_string = "";
+
+   if (entry.tags && entry.tags.length > 0 ) {
+      entry.tags.forEach(tag => {
+         tag_string += getEntryTagLink(tag);
+      });
+   }
+
+   return tag_string;
+}
+
+
+"Fixed manu entry - TODO provide a button class instances and call other formatting functions below"
+function getViewMenu(entry) {
     let link = entry.link;
 
-    let translate_link = getGoogleTranslateLink(link);
-    let archive_link = getArchiveOrgLink(link);
-    let w3c_link = getW3CValidatorLink(link);
-    let schema_link = getSchemaValidatorLink(link);
-    let who_is_link = getWhoIsLink(link);
-    let builtwith_link = getBuiltWithLink(link);
+    links = GetAllServicableLinks(link);
 
-    let text = 
-    `<div class="dropdown mx-1">
-        <button class="btn btn-primary" type="button" id="#entryViewDrop" data-bs-toggle="dropdown" aria-expanded="false">
+    let source_url = getEntrySourceUrl(entry);
+    if (source_url != null) {
+        links.push({
+           name: `Source - ${source_url}`,
+           link: source_url
+        });
+
+        let channel_url = getChannelUrl(source_url);
+        if (channel_url && channel_url != source_url) {
+            links.push({
+               name: `Channel - ${channel_url}`,
+               link: channel_url
+            });
+	}
+
+        const handler = getUrlHandler(source_url);
+        if (handler)
+        {
+           const feeds = handler.getFeeds();
+           for (const feed of feeds) {
+               const safeFeed = sanitizeLink(feed);
+               if (safeFeed && safeFeed != source_url) {
+                  links.push({
+                      name: `RSS - ${safeFeed}`,
+                      link: safeFeed
+                  });
+	       }
+           }
+        }
+    }
+
+    let html = 
+    `<div class="dropdown">
+        <button class="btn btn-primary" type="button" id="#entryViewDrop${entry.id}" data-bs-toggle="dropdown" aria-expanded="false">
           View
         </button>
         <ul class="dropdown-menu">`;
 
-    text += `
-        <li>
-          <a href="${translate_link}" id="Edit" class="dropdown-item" title="Edit entry">
-             View translate
+    links.forEach(function(item) {
+       html += ` <li>
+          <a href="${item.link}" id="Edit" class="dropdown-item" title="${item.name}">
+             ${item.name}
           </a>
         </li>
-    `;
+	    `;
+    });
 
-    text += `
-        <li>
-          <a href="${archive_link}" id="Archive-org" class="dropdown-item" title="View archived version on archive.org">
-             View archive.org
-          </a>
-        </li>
-    `;
+    html += `</ul></div>`;
 
-    text += `
-        <li>
-          <a href="${w3c_link}" id="w3c-validator" class="dropdown-item" title="Edit entry">
-             W3C validator
-          </a>
-        </li>
-    `;
+    return html;
+}
 
-    text += `
-        <li>
-          <a href="${schema_link}" id="Schama-Validator" class="dropdown-item" title="Edit entry">
-             Schema validator
-          </a>
-        </li>
-    `;
 
-    text += `
-        <li>
-          <a href="${who_is_link}" id="Who-Is" class="dropdown-item" title="Edit entry">
-             Who Is validator
-          </a>
-        </li>
-    `;
-    text += `
-        <li>
-          <a href="${builtwith_link}" id="Bulit with" class="dropdown-item" title="Edit entry">
-             Built with
-          </a>
-        </li>
-    `;
+function getMenuButtonText(button) {
+    let button_image_text = "";
+    if (button.image) {
+       button_image_text = `<img src="${button.image}" class="content-icon" />`;
+    }
 
-    text += `</div>`;
+    return `
+     	 <li>
+             <a href="${button.action}" id="${button.id}" class="dropdown-item" title="${button.title}">
+	       ${button_image_text}
+               ${button.name}
+             </a>
+         </li>
+     `;
+}
 
+
+function getMenuEntry(menu_entry) {
+
+    let buttons_text = "";
+    menu_entry.buttons.forEach(button => {
+	buttons_text += getMenuButtonText(button);
+    });
+
+
+     let menu_entry_text = `<div class="dropdown mx-2">
+        <button class="btn btn-primary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+	  ${menu_entry.name}
+        </button>
+     
+        <ul class="dropdown-menu">
+	   ${buttons_text}
+        </ul>
+     </div>`
+
+     return menu_entry_text;
+}
+
+
+function getMenuEntries(menu_entries) {
+    text = "";
+    menu_entries.forEach(menu_entry => {
+       text += getMenuEntry(menu_entry);
+    });
     return text;
 }
 
@@ -378,7 +537,7 @@ function getEntryOpParameters(entry) {
 
     text += `
     <h3>Parameters</h3>
-    <div>Points: ${entry.page_rating}|${entry.page_rating_votes}|${entry.page_rating_contents}</div>
+    <div title="Points:Page rating|User rating|Page contents rating">Points: ${entry.page_rating}|${entry.page_rating_votes}|${entry.page_rating_contents}</div>
     `;
 
     if (entry.date_created) {
@@ -420,44 +579,7 @@ function getEntryOpParameters(entry) {
 }
 
 
-function getEntryBodyText(entry) {
-    let date_published = parseDate(entry.date_published);
-    let parameters = getEntryParameters(entry);
-
-    let text = `
-    <a href="${entry.link}"><h1>${entry.title}</h1></a>
-    <div><a href="${entry.link}">${entry.link}</a></div>
-    ${parameters}
-    `;
-
-    let tags_text = getEntryTags(entry);
-    
-    if (tags_text) {
-       text += `
-           <div>Tags: ${tags_text}</div>
-       `;
-    }
-
-    text += GetEditMenu(entry);
-
-    let source_info = getEntrySourceInfo(entry);
-    text += `
-    <div>${source_info}</div>
-    `;
-
-    let description = getEntryDescription(entry);
-
-    text += `
-    <div>${description}</div>
-    `;
-
-    text += getEntryOpParameters(entry);
-
-    return text;
-}
-
-
-function getEntryFullTextStandard(entry) {
+function getEntryDetailThumbnailPreview(entry) {
     let text = `<div entry="${entry.id}" class="entry-detail">`;
 
     if (entry.thumbnail) {
@@ -473,43 +595,35 @@ function getEntryFullTextStandard(entry) {
        }
     }
 
-    text += getEntryBodyText(entry);
-
-    text += "</div>";
-
     return text;
 }
 
 
-function getEntryFullTextYouTube(entry) {
-    const urlParams = new URL(entry.link).searchParams;
-    const videoId = urlParams.get("v");
-
-    const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : "";
-
-    let text = `<div entry="${entry.id}" class="entry-detail">`;
-
-    if (videoId) {
-        text += `
-          <div class="youtube_player_container">
-              <iframe src="${embedUrl}" frameborder="0" allowfullscreen class="youtube_player_frame" referrerpolicy="no-referrer-when-downgrade"></iframe>
-          </div>
-        `;
+function getEntryDetailYouTubePreview(entry) {
+    let handler = new YouTubeVideoHandler(entry.link);
+    if (!handler.isHandledBy())
+    {
+        return;
     }
 
-    text += getEntryBodyText(entry);
+    const embedUrl = handler.getEmbedUrl();
 
-    text += "</div>";
-
-    return text;
+    return `
+      <div class="youtube_player_container">
+          <iframe src="${embedUrl}" frameborder="0" allowfullscreen class="youtube_player_frame" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+    `;
 }
 
 
-function getEntryFullTextOdysee(entry) {
-    const url = new URL(entry.link);
-    const videoId = url.pathname.split('/').pop();
+function getEntryDetailOdyseePreview(entry) {
+    let handler = new OdyseeVideoHandler(entry.link);
+    if (!handler.isHandledBy())
+    {
+        return;
+    }
 
-    const embedUrl = videoId ? `https://odysee.com/$/embed/${videoId}` : "";
+    const embedUrl = handler.getEmbedUrl();
 
     let text = `<div entry="${entry.id}" class="entry-detail">`;
 
@@ -521,23 +635,6 @@ function getEntryFullTextOdysee(entry) {
         `;
     }
 
-    text += getEntryBodyText(entry);
-    text += "</div>";
-
-    return text;
-}
-
-
-function getEntryDetailText(entry) {
-    let text = "";
-
-    if (entry.link.startsWith("https://www.youtube.com/watch?v="))
-        text = getEntryFullTextYouTube(entry);
-    else if (entry.link.startsWith("https://odysee.com/"))
-        text = getEntryFullTextOdysee(entry);
-    else
-        text = getEntryFullTextStandard(entry);
-
     return text;
 }
 
@@ -547,6 +644,80 @@ function getEntryDetailText(entry) {
  */
 
 
+function getOneEntryEntryText(entry) {
+    const templateMap = {
+        "standard": entryStandardTemplate,
+        "gallery": entryGalleryTemplate,
+        "search-engine": entrySearchEngineTemplate,
+        "content-centric": entryContentCentricTemplate,
+        "read-later": getEntryReadLaterBar,
+        "realated": getEntryRelatedBar,
+        "visits": getEntryVisitsBar,
+        "text": getEntryTextBar,
+    };
+
+    const templateFunc = templateMap[view_display_type];
+    if (!templateFunc) {
+        return;
+    }
+    var template_text = templateFunc(entry, view_show_icons, view_small_icons);
+
+    return template_text;
+}
+
+
+function getEntryTagStrings(entry) {
+   tag_string = "";
+   if (entry.tags && entry.tags.length > 0 ) {
+	tag_string = entry.tags.map(tag => `#${tag}`).join(",");
+   }
+
+   return tag_string;
+}
+
+
+`
+ - If this is not valid, then we have display style to dead
+ - if entry was visited it is opaque
+    - but if entry is bookmarked we do not want to make it more or less opaque
+    - bookmarked was always visited, and should be visible
+`
+function getEntryDisplayStyle(entry, mark_visited=true) {
+    let display_style = "";
+    let opacity = null;
+
+    if (entry.alpha)
+    {
+        opacity = entry.alpha;
+    }
+
+    if (entries_visit_alpha && !entry.bookmarked && entry.visited)
+    {
+        opacity = entries_visit_alpha;
+    }
+
+    if (!isEntryValid(entry))
+    {
+	opacity = entries_dead_alpha;
+    }
+
+    // apply
+
+    if (opacity)
+    {
+       display_style += `opacity: ${opacity};`;
+    }
+
+    if (entry.backgroundcolor) {
+        let alpha = entry.backgroundcolor_alpha !== undefined ? entry.backgroundcolor_alpha : 1;
+        const [r, g, b] = hexToRgb(entry.backgroundcolor);
+        display_style += `background-color: rgba(${r}, ${g}, ${b}, ${alpha});`;
+    }
+
+    return display_style;
+}
+
+
 function entryStandardTemplate(entry, show_icons = true, small_icons = false) {
     let page_rating_votes = entry.page_rating_votes;
 
@@ -554,8 +725,10 @@ function entryStandardTemplate(entry, show_icons = true, small_icons = false) {
     let badge_star = getEntryBookmarkBadge(entry);
     let badge_age = getEntryAgeBadge(entry);
     let badge_dead = getEntryDeadBadge(entry);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+    let badge_visited = getEntryVisitedBadge(entry);
 
-    let invalid_style = isEntryValid(entry) ? `` : `style="opacity: 0.5"`;
+    let invalid_style = getEntryDisplayStyle(entry);
     let bookmark_class = entry.bookmarked ? `list-group-item-primary` : '';
     let thumbnail = getEntryThumbnail(entry);
 
@@ -572,13 +745,17 @@ function entryStandardTemplate(entry, show_icons = true, small_icons = false) {
                 ${img_text}
             </div>`;
     }
-    let tags_text = getEntryTags(entry);
-    let tags = `<div class="text-reset mx-2">${tags_text}</div>`;
+    let tags_text = getEntryTagStrings(entry);
+    let language_text = "";
+    if (entry.language != null) {
+        language_text = `Language:${entry.language}`;
+    }
     let source__title = getEntrySourceTitle(entry);
     let date_published = getEntryDatePublished(entry);
     let title_safe = getEntryTitleSafe(entry);
     let hover_title = title_safe + " " + tags_text;
     let entry_link = getEntryLink(entry);
+    let social = getEntrySocialDataText(entry);
 
     let author = entry.author;
     if (author && author != source__title)
@@ -595,24 +772,29 @@ function entryStandardTemplate(entry, show_icons = true, small_icons = false) {
             href="${entry_link}"
             entry="${entry.id}"
             title="${hover_title}"
-            ${invalid_style}
+            style="${invalid_style}"
             class="my-1 p-1 list-group-item list-group-item-action ${bookmark_class} border rounded"
         >
             <div class="d-flex">
                 ${thumbnail_text}
                 <div class="mx-2">
-                    <span style="font-weight:bold" class="text-reset">${title_safe}</span>
-                    <div class="text-reset">
+                    <span style="font-weight:bold" class="text-reset" entryTitle="true">${title_safe}</span>
+                    <div 
+                      class="text-reset"
+                       entryDetails="true"
+                    >
                         ${source__title} ${date_published} ${author}
                     </div>
-                    ${tags}
+                    <div class="text-reset mx-2">${tags_text} ${language_text}</div>
+                    <div class="entry-social">${social}</div>
                 </div>
 
-                <div class="mx-2 ms-auto">
+                <div class="mx-2 ms-auto" entryBadges="true">
                   ${badge_text}
                   ${badge_star}
                   ${badge_age}
                   ${badge_dead}
+                  ${badge_read_later}
                 </div>
             </div>
         </a>
@@ -627,8 +809,10 @@ function entrySearchEngineTemplate(entry, show_icons = true, small_icons = false
     let badge_star = highlight_bookmarks ? getEntryBookmarkBadge(entry) : "";
     let badge_age = getEntryAgeBadge(entry);
     let badge_dead = getEntryDeadBadge(entry);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+    let badge_visited = getEntryVisitedBadge(entry);
    
-    let invalid_style = isEntryValid(entry) ? `` : `style="opacity: 0.5"`;
+    let invalid_style = getEntryDisplayStyle(entry);
     let bookmark_class = (entry.bookmarked && highlight_bookmarks) ? `list-group-item-primary` : '';
 
     let thumbnail = getEntryThumbnail(entry);
@@ -641,29 +825,32 @@ function entrySearchEngineTemplate(entry, show_icons = true, small_icons = false
                 <img src="${thumbnail}" class="rounded ${iconClass}"/>
             </div>`;
     }
-    let tags_text = getEntryTags(entry);
-    let tags = `<div class="text-reset mx-2">${tags_text}</div>`;
+    let tags_text = getEntryTagStrings(entry);
+    let language_text = "";
+    if (entry.language != null) {
+        language_text = `Language:${entry.language}`;
+    }
     let title_safe = getEntryTitleSafe(entry);
     let entry_link = getEntryLink(entry);
     let hover_title = title_safe + " " + tags_text;
     let link = entry.link;
-
-    let link_text = getEntryLinkText(entry);
+    let social = getEntrySocialDataText(entry);
 
     return `
         <a 
             href="${entry_link}"
             entry="${entry.id}"
             title="${hover_title}"
-            ${invalid_style}
+            style="${invalid_style}"
             class="my-1 p-1 list-group-item list-group-item-action ${bookmark_class} border rounded"
         >
             <div class="d-flex">
                ${thumbnail_text}
                <div class="mx-2">
-                  <span style="font-weight:bold" class="text-reset">${title_safe}</span>
-                  ${link_text}
-                  ${tags}
+                  <span style="font-weight:bold" class="text-reset" entryTitle="true">${title_safe}</span>
+                  <div class="text-reset text-decoration-underline" entryDetails="true">@ ${entry.link}</div>
+                  <div class="text-reset mx-2">${tags_text} ${language_text}</div>
+                  <div class="entry-social">${social}</div>
                </div>
 
                <div class="mx-2 ms-auto">
@@ -671,9 +858,100 @@ function entrySearchEngineTemplate(entry, show_icons = true, small_icons = false
                   ${badge_star}
                   ${badge_age}
                   ${badge_dead}
+                  ${badge_read_later}
                </div>
             </div>
         </a>
+    `;
+}
+
+
+function entryContentCentricTemplate(entry, show_icons = true, small_icons = false) {
+    let page_rating_votes = entry.page_rating_votes;
+
+    let badge_text = getEntryVotesBadge(entry);
+    let badge_star = highlight_bookmarks ? getEntryBookmarkBadge(entry) : "";
+    let badge_age = getEntryAgeBadge(entry);
+    let badge_dead = getEntryDeadBadge(entry);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+    let badge_visited = getEntryVisitedBadge(entry);
+   
+    let invalid_style = getEntryDisplayStyle(entry);
+    let bookmark_class = (entry.bookmarked && highlight_bookmarks) ? `list-group-item-primary` : '';
+
+    let thumbnail = getEntryThumbnail(entry);
+
+    let thumbnail_text = '';
+    if (show_icons) {
+        const iconClass = small_icons ? 'icon-normal' : 'icon-big';
+        if (isMobile()) {
+           thumbnail_text = `
+               <div style="position: relative; display: inline-block;">
+                   <img src="${thumbnail}" style="width:100%; max-height:100%; object-fit:cover"/>
+               </div>`;
+	}
+        else {
+           thumbnail_text = `
+               <div style="position: relative; display: inline-block;">
+                   <img src="${thumbnail}" style="width:50%; max-height:100%; object-fit:cover"/>
+               </div>`;
+	}
+    }
+    let tags_text = getEntryTagStrings(entry);
+    let language_text = "";
+    if (entry.language != null) {
+        language_text = `Language:${entry.language}`;
+    }
+    let title_safe = getEntryTitleSafe(entry);
+    let entry_link = getEntryLink(entry);
+    let hover_title = title_safe + " " + tags_text;
+    let link = entry.link;
+    let description = getEntryDescriptionSafe(entry);
+    let view_menu = getViewMenu(entry);
+    let social = getEntrySocialDataText(entry);
+
+    return `
+        <div 
+            entry="${entry.id}"
+            title="${hover_title}"
+            style="${invalid_style} text-decoration: none"
+            class="my-1 p-1 list-group-item list-group-item-action ${bookmark_class} border rounded"
+        >
+            <a class="d-flex mx-2" href="${entry_link}">
+
+               <div class="text-wrap">
+                  <span style="font-weight:bold" class="h3 text-body" entryTitle="true">${title_safe}</span>
+                  <div class="text-body text-decoration-underline">@ ${entry.link}</div>
+               </div>
+
+               ${badge_text}
+               ${badge_star}
+               ${badge_age}
+               ${badge_dead}
+               ${badge_read_later}
+            </a>
+
+            <div class="mx-2">
+               ${thumbnail_text}
+            </div>
+
+            <!--div class="mx-2">
+              ${view_menu}
+            </div-->
+
+            <div class="mx-2" entryDetails="true">
+            </div>
+
+            <div class="mx-2">
+               ${tags_text} ${language_text}
+            </div>
+
+            <div class="mx-2 entry-social">${social}</div>
+
+            <div class="mx-2 link-detail-description">
+              ${description}
+            </div>
+        </div>
     `;
 }
 
@@ -695,11 +973,18 @@ function entryGalleryTemplateDesktop(entry, show_icons = true, small_icons = fal
     let badge_star = getEntryBookmarkBadge(entry, true);
     let badge_age = getEntryAgeBadge(entry, true);
     let badge_dead = getEntryDeadBadge(entry);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+    let badge_visited = getEntryVisitedBadge(entry);
 
-    let invalid_style = isEntryValid(entry) ? `` : `opacity: 0.5`;
+    let invalid_style = getEntryDisplayStyle(entry);
     let bookmark_class = (entry.bookmarked && highlight_bookmarks) ? `list-group-item-primary` : '';
 
-    let thumbnail = getEntryThumbnail(entry);
+    let thumbnail = "";
+    if (show_icons)
+    {
+       thumbnail = getEntryThumbnail(entry);
+    }
+
     let thumbnail_text = `
         <img src="${thumbnail}" style="width:100%;max-height:100%;aspect-ratio:3/4;object-fit:cover;"/>
         <div class="ms-auto">
@@ -707,16 +992,21 @@ function entryGalleryTemplateDesktop(entry, show_icons = true, small_icons = fal
             ${badge_star}
             ${badge_age}
             ${badge_dead}
+            ${badge_read_later}
         </div>
     `;
 
-    let tags_text = getEntryTags(entry);
-    let tags = `<div class="text-reset mx-2">${tags_text}</div>`;
+    let tags_text = getEntryTagStrings(entry);
+    let language_text = "";
+    if (entry.language != null) {
+        language_text = `Language:${entry.language}`;
+    }
 
     let title_safe = getEntryTitleSafe(entry);
     let hover_title = title_safe + " " + tags_text;
     let entry_link = getEntryLink(entry);
     let source__title = getEntrySourceTitle(entry);
+    let social = getEntrySocialDataText(entry);
 
     return `
         <a 
@@ -727,13 +1017,23 @@ function entryGalleryTemplateDesktop(entry, show_icons = true, small_icons = fal
             style="text-overflow: ellipsis; max-width: 18%; min-width: 18%; width: auto; aspect-ratio: 1 / 1; text-decoration: none; display:flex; flex-direction:column; ${invalid_style}"
         >
             <div style="display: flex; flex-direction:column; align-content:normal; height:100%">
-                <div style="flex: 0 0 70%; flex-shrink: 0;flex-grow:0;max-height:70%">
+                <div style="flex: 0 0 70%; flex-shrink: 0;flex-grow:0;max-height:70%" id="entryTumbnail">
                     ${thumbnail_text}
                 </div>
-                <div style="flex: 0 0 30%; flex-shrink: 0;flex-grow:0;max-height:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                    <span style="font-weight: bold" class="text-primary">${title_safe}</span>
-                    <div class="link-list-item-description">${source__title}</div>
-                    ${tags}
+                <div
+		   style="
+                      flex: 0 0 auto;
+                      overflow: hidden;
+                      text-overflow: ellipsis;
+                      white-space: normal;
+                      line-height: 1.2em;
+                      max-height: 4.8em;
+			  "
+	           id="entryDetails">
+                    <span style="font-weight: bold" class="text-primary" entryTitle="true">${title_safe}</span>
+                    <div class="link-list-item-description" entryDetails="true">${source__title}</div>
+                    <div class="text-reset mx-2">${tags_text} ${language_text}</div>
+                    <div class="entry-social">${social}</div>
                 </div>
             </div>
         </a>
@@ -748,27 +1048,38 @@ function entryGalleryTemplateMobile(entry, show_icons = true, small_icons = fals
     let badge_star = getEntryBookmarkBadge(entry, true);
     let badge_age = getEntryAgeBadge(entry, true);
     let badge_dead = getEntryDeadBadge(entry);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+    let badge_visited = getEntryVisitedBadge(entry);
 
-    let invalid_style = isEntryValid(entry) ? `` : `opacity: 0.5`;
+    let invalid_style = getEntryDisplayStyle(entry);
     let bookmark_class = (entry.bookmarked && highlight_bookmarks) ? `list-group-item-primary` : '';
 
-    let thumbnail = getEntryThumbnail(entry);
+    let thumbnail = "";
+    if (show_icons)
+    {
+       thumbnail = getEntryThumbnail(entry);
+    }
     let thumbnail_text = `
         <img src="${thumbnail}" style="width:100%; max-height:100%; object-fit:cover"/>
         ${badge_text}
         ${badge_star}
         ${badge_age}
         ${badge_dead}
+        ${badge_read_later}
     `;
 
-    let tags_text = getEntryTags(entry);
-    let tags = `<div class="text-reset mx-2">${tags_text}</div>`;
+    let tags_text = getEntryTagStrings(entry);
+    let language_text = "";
+    if (entry.language != null) {
+        language_text = `Language:${entry.language}`;
+    }
 
     let source__title = getEntrySourceTitle(entry);
     let title_safe = getEntryTitleSafe(entry);
     let hover_title = title_safe + " " + tags_text;
 
     let entry_link = getEntryLink(entry);
+    let social = getEntrySocialDataText(entry);
 
     return `
         <a 
@@ -783,13 +1094,188 @@ function entryGalleryTemplateMobile(entry, show_icons = true, small_icons = fals
                     ${thumbnail_text}
                 </div>
                 <div style="flex: 0 0 30%; flex-shrink: 0;flex-grow:0;max-height:30%">
-                    <span style="font-weight: bold" class="text-primary">${title_safe}</span>
-                    <div class="link-list-item-description">${source__title}</div>
-                    ${tags}
+                    <span style="font-weight: bold" class="text-primary" entryTitle="true">${title_safe}</span>
+                    <div class="link-list-item-description" entryDetails="true">${source__title}</div>
+                    <div class="text-reset mx-2">${tags_text} ${language_text}</div>
+                    <div class="entry-social">${social}</div>
                 </div>
             </div>
         </a>
     `;
+}
+
+
+function getEntryVisitsBar(entry, show_icons=true, small_icons=true) {
+    let link_absolute = entry.link_absolute;
+    let id = entry.id;
+    let title = entry.title;
+    let title_safe = getEntryTitleSafe(entry);
+    let link = entry.link;
+    let thumbnail = entry.thumbnail;
+    let source__title = entry.source__title;
+    let date_published = getEntryDatePublished(entry);
+    let date_last_visit = entry.date_last_visit.toLocaleString();
+    let number_of_visits = entry.number_of_visits;
+
+    let badge_text = getEntryVotesBadge(entry, true);
+    let badge_star = getEntryBookmarkBadge(entry, true);
+    let badge_age = getEntryAgeBadge(entry, true);
+    let badge_dead = getEntryDeadBadge(entry, true);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+
+    let img_text = '';
+    if (view_show_icons) {
+        const iconClass = view_small_icons ? 'icon-small' : 'icon-normal';
+        img_text = `<img src="${thumbnail}" class="rounded ${iconClass}" />`;
+    }
+    let link_text = getEntryLinkText(entry);
+
+    let text = `
+         <a
+         class="list-group-item list-group-item-action"
+         href="${link_absolute}" title="${title}">
+             ${badge_text}
+             ${badge_star}
+             ${badge_age}
+             ${badge_dead}
+             ${badge_read_later}
+
+             <div class="d-flex">
+               ${img_text}
+
+               <div class="mx-2">
+                  ${title_safe}
+                  Visits:${number_of_visits}
+                  Date of the last visit:${date_last_visit}
+		  ${link_text}
+               </div>
+             </div>
+         </a>
+    `;
+    return text;
+}
+
+
+function getEntryRelatedBar(entry, from_entry_id) {
+    let link_absolute = entry.link_absolute;
+    let id = entry.id;
+    let title = entry.title;
+    let title_safe = getEntryTitleSafe(entry);
+    let link = entry.link;
+    let thumbnail = entry.thumbnail;
+    let source__title = entry.source__title;
+    let date_published = getEntryDatePublished(entry);
+
+    let badge_text = getEntryVotesBadge(entry, true);
+    let badge_star = getEntryBookmarkBadge(entry, true);
+    let badge_age = getEntryAgeBadge(entry, true);
+    let badge_dead = getEntryDeadBadge(entry, true);
+    let badge_read_later = getEntryReadLaterBadge(entry);
+    let badge_visited = getEntryVisitedBadge(entry);
+
+    let img_text = '';
+    if (view_show_icons) {
+        const iconClass = view_small_icons ? 'icon-small' : 'icon-normal';
+        img_text = `<img src="${thumbnail}" class="rounded ${iconClass}" />`;
+    }
+    let link_text = getEntryLinkText(entry);
+
+    let text = `
+         <a
+         class="list-group-item list-group-item-action"
+         href="${link_absolute}?from_entry_id=${from_entry_id}" title="${title}">
+             ${badge_text}
+             ${badge_star}
+             ${badge_age}
+             ${badge_dead}
+             ${badge_read_later}
+
+             <div class="d-flex">
+               ${img_text}
+
+               <div class="mx-2">
+		  <div>
+        	  ${title_safe}
+		  ${link_text}
+		  </div>
+               </div>
+             </div>
+         </a>
+    `;
+    return text;
+}
+
+
+function getEntryReadLaterBar(entry, show_icons=true, small_icons=true) {
+    let remove_link = entry.remove_link; // manually set
+    let remove_icon = entry.remove_icon; // manually set
+
+    let link_absolute = entry.link_absolute;
+    let id = entry.id;
+    let title = entry.title;
+    let title_safe = entry.title_safe;
+    let link = entry.link;
+    let thumbnail = entry.thumbnail;
+    let source__title = entry.source__title;
+    let date_published = entry.date_published.toLocaleString();
+
+    let badge_text = getEntryVotesBadge(entry, true);
+    let badge_star = getEntryBookmarkBadge(entry, true);
+    let badge_age = getEntryAgeBadge(entry, true);
+    let badge_dead = getEntryDeadBadge(entry, true);
+
+    let img_text = '';
+    if (view_show_icons) {
+        const iconClass = view_small_icons ? 'icon-small' : 'icon-normal';
+        img_text = `<img src="${thumbnail}" class="rounded ${iconClass}" />`;
+    }
+    let link_text = getEntryLinkText(entry);
+
+    let text = `
+         <div 
+         class="list-group-item list-group-item-action"
+	 >
+             ${badge_text}
+             ${badge_star}
+             ${badge_age}
+             ${badge_dead}
+
+             <div class="d-flex">
+	         <a href="${link_absolute}" title="${title}" class="d-flex">
+		   ${img_text}
+        
+                   <div class="mx-2">
+		      <div>
+        	         ${title_safe}
+			 ${link_text}
+		      </div>
+        	   </div>
+	         </a>
+        
+                 <a id="${id}" class="remove-button ms-auto" href="${remove_link}" >
+                    ${remove_icon}
+                 </a>
+             </div>
+         </div>
+    `;
+    return text;
+}
+
+
+function getEntryTextBar(entry, show_icons=false, small_icons=false) {
+   let htmlOutput = "";
+   for (const [key, value] of Object.entries(entry)) {
+       if (key != "description")
+       {
+           htmlOutput += `
+           <div>
+               <strong>${key}:</strong> ${value ?? "N/A"}
+           </div>
+       `;
+       }
+   }
+
+   return htmlOutput;
 }
 
 
@@ -844,23 +1330,6 @@ function getEntriesList(entries) {
     htmlOutput += `</span>`;
 
     return htmlOutput;
-}
-
-
-function getOneEntryEntryText(entry) {
-    const templateMap = {
-        "standard": entryStandardTemplate,
-        "gallery": entryGalleryTemplate,
-        "search-engine": entrySearchEngineTemplate
-    };
-
-    const templateFunc = templateMap[view_display_type];
-    if (!templateFunc) {
-        return;
-    }
-    var template_text = templateFunc(entry, view_show_icons, view_small_icons);
-
-    return template_text;
 }
 
 
@@ -927,27 +1396,9 @@ function isEntrySearchHitAdvanced(entry, searchText) {
         operator_2 = result[1].trim();
     }
 
-    if (operator_0 == "title")
-    {
-        if (operator_1 == "=" && entry.title && entry.title.toLowerCase().includes(operator_2.toLowerCase()))
-            return true;
-        if (operator_1 == "==" && entry.title && entry.title.toLowerCase() == operator_2.toLowerCase())
-            return true;
-    }
-    if (operator_0 == "link")
-    {
-        if (operator_1 == "=" && entry.link && entry.link.toLowerCase().includes(operator_2.toLowerCase()))
-            return true;
-        if (operator_1 == "==" && entry.link && entry.link.toLowerCase() == operator_2.toLowerCase())
-            return true;
-    }
-    if (operator_0 == "description")
-    {
-        if (operator_1 == "=" && entry.description && entry.description.toLowerCase().includes(operator_2.toLowerCase()))
-            return true;
-        if (operator_1 == "==" && entry.description && entry.description.toLowerCase() == operator_2.toLowerCase())
-            return true;
-    }
+    let ignore_case = true;
+    let thing_to_check = "";
+
     if (operator_0 == "tag")
     {
         if (entry.tags && Array.isArray(entry.tags)) {
@@ -965,20 +1416,51 @@ function isEntrySearchHitAdvanced(entry, searchText) {
             }
         }
     }
+
+    if (operator_0 == "title")
+    {
+        thing_to_check = entry.title;
+    }
+    if (operator_0 == "link")
+    {
+        thing_to_check = entry.link;
+    }
+    if (operator_0 == "description")
+    {
+        thing_to_check = entry.description;
+    }
+    if (operator_0 == "language")
+    {
+        thing_to_check = entry.language;
+    }
+
+    if (operator_1 == "=" && thing_to_check && thing_to_check.toLowerCase().includes(operator_2.toLowerCase()))
+        return true;
+    if (operator_1 == "==" && thing_to_check && thing_to_check.toLowerCase() == operator_2.toLowerCase())
+        return true;
+
+    return false;
 } 
 
+
 function sortEntries(entries) {
-    if (sort_function == "page_rating_votes") {
-        entries = entries.sort((a, b) => {
-            return a.page_rating_votes - b.page_rating_votes;
-        });
-    }
-    else if (sort_function == "-page_rating_votes") {
-        entries = entries.sort((a, b) => {
-            return b.page_rating_votes - a.page_rating_votes;
-        });
-    }
-    else if (sort_function == "-date_published") {
+    console.log(`Sorting using ${sort_function}`);
+    const sortFields = [
+        'link',
+        'title',
+        'page_rating_votes',
+        'followers_count',
+        'stars',
+        'view_count',
+        'upvote_ratio',
+        'upvote_diff',
+        'upvote_view_ratio',
+    ];
+
+    const isDescending = sort_function.startsWith('-');
+    const field = isDescending ? sort_function.slice(1) : sort_function;
+
+    if (sort_function == "-date_published") {
         entries = entries.sort((a, b) => {
             if (a.date_published === null && b.date_published === null) {
                 return 0;
@@ -1006,6 +1488,16 @@ function sortEntries(entries) {
             return new Date(a.date_published) - new Date(b.date_published);
         });
     }
+    else if (sortFields.includes(field)) {
+        entries.sort((a, b) => {
+            const aVal = a[field] ?? 0;
+            const bVal = b[field] ?? 0;
+
+            return isDescending
+                ? bVal - aVal
+                : aVal - bVal;
+        });
+    }
 
     return entries;
 }
@@ -1014,6 +1506,17 @@ function sortEntries(entries) {
 /*
 module.exports = {
     getEntryTags,
-    getEntryListText
+    getEntryListText,
+    isStatusCodeValid,
+    getEntryAuthorText,
+    getEntryVotesBadge,
+    getEntryBookmarkBadge,
+    getEntryAgeBadge,
+    getEntryDeadBadge,
+    getEntryParameters,
+    getEntryDetailText,
+    getEntryFullTextStandard,
+    getEntryFullTextYouTube,
+    getEntryFullTextOdysee,
 };
 */

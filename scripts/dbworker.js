@@ -23,7 +23,7 @@ async function requestFileChunksFromListLog(worker, parts) {
 
 async function createDatabase(worker, dbFileName) {
     if (dbFileName.indexOf(".zip") !== -1) {
-       console.log("createDatabase - zip");
+       debug("createDatabase - zip");
 
        worker.postMessage({ success: true, message_type: "message", result: "fetching file list..."});
 
@@ -57,7 +57,7 @@ async function createDatabase(worker, dbFileName) {
        return await createDatabaseData(data);
     }
     else if (dbFileName.indexOf(".db") !== -1) {
-       console.log("createDatabase - db");
+       debug("createDatabase - db");
 
        let data = await requestFileChunksUintArray(dbFileName);
        if (!data) {
@@ -72,9 +72,11 @@ async function createDatabase(worker, dbFileName) {
 
 
 self.onmessage = async function (e) {
-    const {fileName, query } = e.data;
+    const {type, fileName, query } = e.data;
 
-    if (fileName)
+    debug(`Worker - ${type}`);
+
+    if (type == "filename" && fileName)
     {
         file_name = fileName;
         console.log("Worker - set up file name " + file_name);
@@ -105,33 +107,43 @@ self.onmessage = async function (e) {
                 return;
             }
 
+            debug(`Worker - ${query}`);
+
             postMessage({ success: true, message_type: "message", result: "Executing query"});
 
             // Execute the query
             const result = db.exec(query);
 
-            postMessage({ success: true, message_type: "message", result: "Unpacking results"});
-            console.log("Worker - Unpacking");
+            if (type == "entries" ) {
+                postMessage({ success: true, message_type: "message", result: "Unpacking results"});
+                debug("Worker - Unpacking");
 
-            let object_list_data = { entries: [] };
-            object_list_data.entries = unpackQueryResults(result);
+                let object_list_data = { entries: [] };
+                object_list_data.entries = unpackEntries(result);
 
-            console.log("Worker - Sending respone");
+                debug("Worker - Sending entries respone");
 
-            // Send the result back to the main thread
-            postMessage({ success: true, message_type: "entries", result: object_list_data});
+                // Send the result back to the main thread
+                postMessage({ success: true, message_type: "entries", result: object_list_data});
 
-            postMessage({ success: true, message_type: "message", result: "Checking tables length"});
-
-            let total_rows = await getQueryTotalRows(query);
-            console.log("Worker - query total rows " + total_rows);
-            postMessage({ success: true, message_type: "pagination", result: total_rows});
-            console.log("Worker - DONE");
-
+                postMessage({ success: true, message_type: "message", result: "Checking tables length"});
+            }
+            else if (type == "pagination" )
+            {
+                let total_rows = await getQueryTotalRows(query);
+                debug("Worker - query total rows " + total_rows);
+                postMessage({ success: true, message_type: "pagination", result: total_rows});
+            }
+            else if (type == "socialdata" )
+            {
+            }
         } catch (error) {
             postMessage({ success: false, error: error.message });
         }
     }
+
+    debug("Worker - DONE");
+    postMessage({ success: true, message_type: "message", result: "Worker - DONE"});
 };
 
 

@@ -7,33 +7,44 @@
  |_____/ \___\_\______|_|\__\___| |_|___/  \__,_| \_/\_/ \___||___/\___/|_| |_| |_|\___|
 */
 
-function getSelectColumns() {
-    return "l.id, l.link, l.title, l.description, l.date_published, l.thumbnail, l.author, l.album, l.language, l.permanent, l.bookmarked, l.age, l.status_code, l.manual_status_code, l.page_rating, l.page_rating_votes, l.page_rating_contents, e.tag";
+
+function getEntriesSelectColumns() {
+    columns = "";
+
+    columns += "l.id,";                         // 0
+    columns += "l.link,";                       // 1
+    columns += "l.title,";                      // 2
+    columns += "l.description,";                // 3
+    columns += "l.date_published,";             // 4
+    columns += "l.thumbnail,";                  // 5
+    columns += "l.author,";                     // 6
+    columns += "l.album,";                      // 7
+    columns += "l.language,";                   // 8
+    columns += "l.permanent,";                  // 9
+    columns += "l.bookmarked,";                 // 10
+    columns += "l.age,";                        // 11
+    columns += "l.status_code,";                // 12
+    columns += "l.manual_status_code,";         // 13
+    columns += "l.page_rating,";                // 14
+    columns += "l.page_rating_votes,";          // 15
+    columns += "l.page_rating_contents,";       // 16
+
+    columns += "t.tag,";                        // 17
+
+    columns += "socialdata.thumbs_up AS thumbs_up,";                // 18
+    columns += "socialdata.thumbs_down AS thumbs_down,";            // 19
+    columns += "socialdata.view_count AS view_count,";              // 20
+    columns += "socialdata.followers_count AS followers_count,";    // 21
+    columns += "socialdata.stars AS stars,";                        // 22
+    columns += "socialdata.upvote_ratio AS upvote_ratio,";          // 23
+    columns += "socialdata.upvote_diff AS upvote_diff,";            // 24
+    columns += "socialdata.upvote_view_ratio AS upvote_view_ratio";  // 25
+
+    return columns;
 }
 
 
-function selectEntryTags(entry_id) {
-   let text = `SELECT tag FROM usertags WHERE entry_id = ${entry_id}`;
-
-   let result = new Set();
-
-   console.log(text);
-
-   const res = db.exec(text);
-
-   if (res.length > 0) {
-      const rows = res[0].values;
-
-      rows.forEach(row => {
-         result.add(row[0]);
-      });
-   }
-
-   return Array.from(result); 
-}
-
-
-function unpackQueryResults(res) {
+function unpackEntries(res) {
     let results = [];
 
     if (res.length > 0) {
@@ -64,6 +75,103 @@ function unpackQueryResults(res) {
            page_rating_votes: row[15],
            page_rating_contents: row[16],
            tags: tags,
+           thumbs_up: row[18],
+           thumbs_down: row[19],
+           view_count: row[20],
+           followers_count: row[21],
+           stars: row[22],
+           upvote_ratio: row[23],
+           upvote_diff: row[24],
+           upvote_view_ratio: row[25],
+         };
+
+         results.push(data);
+       });
+    }
+
+    return results;
+}
+
+
+`we need to join tags, because when we search for something we want to filter by tags`
+function getEntriesSelectFromStmt() {
+   return ` FROM linkdatamodel AS l
+            LEFT JOIN entrycompactedtags AS t ON l.id = t.entry_id
+            LEFT JOIN socialdata AS socialdata ON l.id = socialdata.entry_id`;
+}
+
+
+function selectEntryTags(entry_id) {
+   let text = `SELECT tag FROM usertags WHERE entry_id = ${entry_id}`;
+
+   let result = new Set();
+
+   console.log(text);
+
+   const res = db.exec(text);
+
+   if (res.length > 0) {
+      const rows = res[0].values;
+
+      rows.forEach(row => {
+         result.add(row[0]);
+      });
+   }
+
+   return Array.from(result); 
+}
+
+
+function selectEntrySocialStmt(entry_id) {
+   let text = `SELECT
+        id,
+        entry_id,
+        thumbs_up,
+        thumbs_down,
+        view_count,
+        followers_count,
+        stars,
+        upvote_ratio,
+        upvote_diff,
+        upvote_view_ratio
+        FROM socialdata WHERE entry_id = ${entry_id}`;
+
+    return text;
+}
+
+
+function selectEntrySocial(entry_id) {
+   let text = selectEntrySocialStmt(entry_id);
+
+   let result = new Set();
+
+   console.log(text);
+
+   const res = db.exec(text);
+
+   let social_data = unpackSocialData(res);
+   return social_data;
+}
+
+
+function unpackSocialData(res) {
+    let results = [];
+
+    if (res.length > 0) {
+       const rows = res[0].values;
+       
+       rows.forEach(row => {
+         const data = {
+           id: row[0],
+           entry_id: row[1],
+           thumbs_up: row[2],
+           thumbs_down: row[3],
+           view_count: row[4],
+           followers_count: row[5],
+           stars: row[6],
+           upvote_ratio: row[7],
+           upvote_diff: row[8],
+           upvote_view_ratio: row[9],
          };
 
          results.push(data);
@@ -91,21 +199,18 @@ let PAGE_SIZE = 100;
 
 
 function getSelectEntry(entry_id) {
-   let text = "SELECT " + getSelectColumns();
-   text = text + ` FROM linkdatamodel AS l
-                   LEFT JOIN entrycompactedtags AS e ON l.id = e.entry_id`;
-   text = text + ` WHERE l.id = ${entry_id}`;
+   let text = "SELECT " + getEntriesSelectColumns();
+   text += getEntriesSelectFromStmt();
+   text += ` WHERE l.id = ${entry_id}`;
 
    return text;
 
 }
 
 
-function getSelectDefault() {
-   let text = "SELECT " + getSelectColumns();
-
-   text = text + ` FROM linkdatamodel AS l
-                   LEFT JOIN entrycompactedtags AS e ON l.id = e.entry_id`;
+function getEntriesSelectDefault() {
+   let text = "SELECT " + getEntriesSelectColumns();
+   text += getEntriesSelectFromStmt();
 
    let page = getQueryParam("page") || 1;
    const offset = (page - 1) * PAGE_SIZE;
@@ -119,16 +224,15 @@ function getSelectDefault() {
 }
 
 
-function getSelectDefaultUserInput(userInput) {
+function getEntriesSelectDefaultUserInput(userInput) {
    console.log(userInput);
-   let text = "SELECT " + getSelectColumns();
+   let text = "SELECT " + getEntriesSelectColumns();
+   text += getEntriesSelectFromStmt();
 
-   text = text + ` FROM linkdatamodel AS l
-                   LEFT JOIN entrycompactedtags AS e ON l.id = e.entry_id
-                   WHERE UPPER(l.title) LIKE UPPER('%${userInput}%')
-                   OR UPPER(l.link) LIKE UPPER('%${userInput}%')
-                   OR UPPER(l.description) LIKE UPPER('%${userInput}%')
-                   OR UPPER(e.tag) LIKE UPPER('%${userInput}%')`;
+   text += ` WHERE UPPER(l.title) LIKE UPPER('%${userInput}%')
+            OR UPPER(l.link) LIKE UPPER('%${userInput}%')
+            OR UPPER(l.description) LIKE UPPER('%${userInput}%')
+            OR UPPER(t.tag) LIKE UPPER('%${userInput}%')`;
 
    let page = getQueryParam("page") || 1;
    const offset = (page - 1) * PAGE_SIZE;
@@ -142,13 +246,12 @@ function getSelectDefaultUserInput(userInput) {
 }
 
 
-function getSelectCustomSQL(userInput) {
+function getEntriesSelectCustomSQL(userInput) {
 
-   let text = "SELECT " + getSelectColumns();
+   let text = "SELECT " + getEntriesSelectColumns();
+   text += getEntriesSelectFromStmt();
 
-   text = text + ` FROM linkdatamodel AS l
-                   LEFT JOIN entrycompactedtags AS e ON l.id = e.entry_id
-                   WHERE ${userInput}`;
+   text += ` WHERE ${userInput}`;
 
    let page = getQueryParam("page") || 1;
    const offset = (page - 1) * PAGE_SIZE;
@@ -165,7 +268,7 @@ function execQuery(text) {
    console.log(text);
    try {
       const res = db.exec(text);
-      object_list_data.entries = unpackQueryResults(res);
+      object_list_data.entries = unpackEntries(res);
    } catch (error) {
       console.error("Error executing query:", error);
    }
@@ -208,28 +311,10 @@ async function getQueryTotalRows(text) {
 }
 
 
-function getQueryTagsText() {
-    /**
-     * Known feature of SQLite. It does not provide DISTINCT keyword
-     * meaning this can result duplicated records.
-     */
-    let text = `
-   SELECT l.*
-   FROM linkdatamodel l
-   JOIN usertags u ON l.id = u.entry_id
-   WHERE u.tag LIKE '%video game%'`
-
-   let order_by = getOrderStmt();
-   let page_size_query = PAGE_SIZE;
-
-   text = text + ` ${order_by} LIMIT ${page_size_query} OFFSET ${offset}`;
-}
-
-
 function getQueryText() {
    let userInput = $("#searchInput").val();
 
-   let text = getSelectDefault(userInput);
+   let text = getEntriesSelectDefault(userInput);
 
    let entry_id = getQueryParam("entry_id");
    if (entry_id)
@@ -239,10 +324,10 @@ function getQueryText() {
 
    if (userInput && userInput != "") {
        if (userInput.indexOf("LIKE") !== -1) {
-          text = getSelectCustomSQL(userInput);
+          text = getEntriesSelectCustomSQL(userInput);
        }
        else {
-          text = getSelectDefaultUserInput(userInput);
+          text = getEntriesSelectDefaultUserInput(userInput);
        }
    }
 
@@ -255,8 +340,6 @@ async function createDatabaseData(dataArray) {
      return false;
   }
 
-  console.log("createDatabaseData");
-
   try {
     const config = {
       locateFile: filename => `https://cdn.jsdelivr.net/npm/sql.js@1.6.0/dist/${filename}`
@@ -267,7 +350,6 @@ async function createDatabaseData(dataArray) {
 
     // Load the database
     db = new SQL.Database(dataArray);
-    console.log("createDatabaseData DONE");
 
     return true;
 

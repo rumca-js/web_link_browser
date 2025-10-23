@@ -27,6 +27,49 @@ function escapeHtml(unsafe)
 }
 
 
+function hexToRgb(hex) {
+    // Remove "#" if present
+    hex = hex.replace(/^#/, "");
+
+    // Parse shorthand format (#RGB)
+    if (hex.length === 3) {
+        hex = hex.split('').map(c => c + c).join('');
+    }
+
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+
+    return [r, g, b];
+}
+
+
+
+class UrlLocation {
+  constructor(urlString) {
+    try {
+      this.url = new URL(urlString);
+    } catch (e) {
+      throw new Error("Invalid URL");
+    }
+  }
+
+  getProtocolless() {
+    return sanitizeLink(this.url.href.replace(`${this.url.protocol}//`, ''));
+  }
+
+  getDomain() {
+    const protocolless = this.getProtocolless();
+    const firstSlashIndex = protocolless.indexOf('/');
+    if (firstSlashIndex === -1) {
+      return protocolless;
+    }
+    return protocolless.substring(0, firstSlashIndex);
+  }
+}
+
+
 function createLinks(inputText) {
     const urlRegex = /(?<!<a[^>]*>)(https:\/\/[a-zA-Z0-9-_\.\/]+)(?!<\/a>)/g;
     const urlRegex2 = /(?<!<a[^>]*>)(http:\/\/[a-zA-Z0-9-_\.\/]+)(?!<\/a>)/g;
@@ -49,6 +92,11 @@ function isEmpty( el ){
 
 function getSpinnerText(text = 'Loading...') {
    return `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ${text}`;
+}
+
+
+function animateToTop() {
+    $('html, body').animate({ scrollTop: 0 }, 'slow');
 }
 
 
@@ -130,6 +178,47 @@ function GetPaginationNav(currentPage, totalPages, totalRows) {
 }
 
 
+function GetPaginationNavSimple(currentPage) {
+    let paginationText = `
+        <nav aria-label="Page navigation">
+            <ul class="pagination">
+    `;
+
+    const currentUrl = new URL(window.location);
+    currentUrl.searchParams.delete('page');
+    const paginationArgs = `${currentUrl.searchParams.toString()}`;
+
+    if (currentPage > 1) {
+        paginationText += `
+            <li class="page-item">
+                <a href="?page=1&${paginationArgs}" data-page="1" class="btnNavigation page-link">|&lt;</a>
+            </li>
+        `;
+    }
+    if (currentPage > 1) {
+        paginationText += `
+            <li class="page-item">
+                <a href="?page=${currentPage - 1}&${paginationArgs}" data-page="${currentPage - 1}" class="btnNavigation page-link">&lt;</a>
+            </li>
+        `;
+    }
+
+    paginationText += `
+        <li class="page-item">
+            <a href="?page=${currentPage + 1}&${paginationArgs}" data-page="${currentPage + 1}" class="btnNavigation page-link">&gt;</a>
+        </li>
+    `;
+
+    paginationText += `
+            </ul>
+            Page: ${currentPage}
+        </nav>
+    `;
+
+    return paginationText;
+}
+
+
 function getHumanReadableNumber(num) {
     if (num >= 1e9) {
         return (num / 1e9).toFixed(1) + "B"; // Billions
@@ -142,8 +231,28 @@ function getHumanReadableNumber(num) {
 }
 
 
+/**
+ * Returns date in Locale
+ */
 function parseDate(inputDate) {
     return inputDate.toLocaleString();
+}
+
+
+/**
+ * Returns date in known format
+ */
+function getFormattedDate(input_date) {
+    let dateObject = input_date ? new Date(input_date) : new Date();
+
+    let formattedDate = dateObject.getFullYear() + "-" +
+        String(dateObject.getMonth() + 1).padStart(2, "0") + "-" +
+        String(dateObject.getDate()).padStart(2, "0") + " " +
+        String(dateObject.getHours()).padStart(2, "0") + ":" +
+        String(dateObject.getMinutes()).padStart(2, "0") + ":" +
+        String(dateObject.getSeconds()).padStart(2, "0");
+
+    return formattedDate;
 }
 
 
@@ -153,13 +262,30 @@ class InputContent {
   }
 
   htmlify() {
-    this.text = this.stripHtmlAttributes();
-    this.text = this.linkify("https://");
-    this.text = this.linkify("http://");
+    this.text = this.noattrs();
+    this.text = this.linkify();
     return this.text;
   }
 
-  stripHtmlAttributes() {
+  nohtml() {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(this.text, "text/html");
+  
+    const elements = doc.querySelectorAll("p, div, table, a");
+  
+    elements.forEach(el => {
+      // Replace the <p> or <div> with its children (unwrap it)
+      const parent = el.parentNode;
+      while (el.firstChild) {
+        parent.insertBefore(el.firstChild, el);
+      }
+      parent.removeChild(el);
+    });
+  
+    return doc.body.innerHTML;
+  }
+
+  noattrs() {
     const parser = new DOMParser();
     const doc = parser.parseFromString(this.text, "text/html");
 
@@ -186,7 +312,24 @@ class InputContent {
     return doc.body.innerHTML;
   }
 
-  linkify(protocol = "https://") {
+  linkify() {
+    this.text = this.linkify_protocol("https://");
+    this.text = this.linkify_protocol("http://");
+    return this.text;
+  }
+
+  removeImgs(link) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(this.text, "text/html");
+
+    const imgs = doc.querySelectorAll(`img[src="${link}"]`);
+    imgs.forEach(img => img.remove());
+
+    this.text = doc.body.innerHTML;
+    return this.text;
+  }
+
+  linkify_protocol(protocol = "https://") {
     let text = this.text;
 
     if (!text.includes(protocol)) {
@@ -245,6 +388,15 @@ function fixStupidGoogleRedirects(input_url) {
         return input_url;
     }
 
+    return input_url;
+}
+
+
+function fixStupidYoutubeRedirects(input_url) {
+    if (!input_url) {
+        return null;
+    }
+
     if (input_url.includes("www.youtube.com/redirect")) {
         const url = new URL(input_url);
         let redirectURL = url.searchParams.get('q');
@@ -260,125 +412,75 @@ function fixStupidGoogleRedirects(input_url) {
     return input_url;
 }
 
+function fixStupidMicrosoftSafeLinks(input_url) {
+    if (!input_url) {
+        return null;
+    }
 
-function getYouTubeVideoId(url) {
     try {
-        const urlObj = new URL(url);
-        const hostname = urlObj.hostname;
+        const parsedUrl = new URL(input_url);
 
-        if (hostname.includes("youtu.be")) {
-            return urlObj.pathname.slice(1);
+        if (parsedUrl.hostname.endsWith("safelinks.protection.outlook.com")) {
+            const originalUrl = parsedUrl.searchParams.get("url");
+
+            if (originalUrl) {
+                return decodeURIComponent(originalUrl);
+            }
         }
-
-        if (urlObj.searchParams.has("v")) {
-            return urlObj.searchParams.get("v");
-        }
-
-        const paths = urlObj.pathname.split("/");
-        const validPrefixes = ["embed", "shorts", "v"];
-        if (validPrefixes.includes(paths[1]) && paths[2]) {
-            return paths[2];
-        }
-
-        return null;
     } catch (e) {
-        return null;
     }
+
+    return input_url;
 }
 
 
-function getYouTubeChannelId(url) {
-    try {
-        const urlObj = new URL(url);
-        const hostname = urlObj.hostname;
+function sanitizeLinkGeneral(link) {
+   link = link.trimStart();
 
-        if (urlObj.searchParams.has("channel_id")) {
-            return urlObj.searchParams.get("channel_id");
-        }
+   // link can be inserted by hand, so someone might enter / at the end
+   //if (link.endsWith("/")) {
+   //   link = link.slice(0, -1);
+   //}
+   if (link.endsWith(" ")) {
+      link = link.slice(0, -1);
+   }
 
-        return null;
-    } catch (e) {
-        return null;
+   return link;
+}
+
+
+function sanitizeLink(link) {
+   link = sanitizeLinkGeneral(link);
+   link = fixStupidGoogleRedirects(link);
+   link = fixStupidYoutubeRedirects(link);
+   link = fixStupidMicrosoftSafeLinks(link);
+   link = sanitizeLinkGeneral(link);
+
+   return link;
+}
+
+
+function isSocialMediaSupported(entry) {
+    let page = new UrlLocation(entry.link)
+    let domain = page.getDomain()
+    if (!domain) {
+        return false;
     }
-}
 
-
-function getYouTubeChannelUrl(url) {
-    let id = getYouTubeChannelId(url);
-    if (id)
-        return `https://www.youtube.com/channel/${id}`;
-}
-
-
-function getYouTubeEmbedDiv(youtubeUrl) {
-    const videoId = getYouTubeVideoId(youtubeUrl);
-    if (videoId) {
-        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-        const frameHtml = `
-            <div class="youtube_player_container mb-4">
-                <iframe 
-                    src="${embedUrl}" 
-                    frameborder="0" 
-                    allowfullscreen 
-                    class="youtube_player_frame w-100" 
-                    style="aspect-ratio: 16 / 9;"
-                    referrerpolicy="no-referrer-when-downgrade">
-                </iframe>
-            </div>
-        `;
-        return frameHtml;
+    if (domain.includes("youtube.com")) {
+        return true;
     }
-}
+    if (domain.includes("github.com")) {
+        return true;
+    }
+    if (domain.includes("reddit.com")) {
+        return true;
+    }
+    if (domain.includes("news.ycombinator.com")) {
+        return true;
+    }
 
-
-function getChannelUrl(url) {
-    let channelid = null;
-    if (!url)
-        return;
-
-    channelid = getYouTubeChannelUrl(url);
-    if (channelid)
-        return channelid;
-}
-
-
-/**
- Specific
-*/
-
-
-function setLightMode() {
-    view_display_style = "style-light";
-
-    // const linkElement = document.querySelector('link[rel="stylesheet"][href*="styles.css_style-"]');
-    // if (linkElement) {
-    //     // TODO replace rsshistory with something else
-    //     //linkElement.href = "/django/rsshistory/css/styles.css_style-light.css";
-    // }
-
-    const htmlElement = document.documentElement;
-    htmlElement.setAttribute("data-bs-theme", "light");
-
-    const navbar = document.getElementById('navbar');
-    navbar.classList.remove('navbar-dark', 'bg-dark');
-    navbar.classList.add('navbar-light', 'bg-light');
-}
-
-
-function setDarkMode() {
-    view_display_style = "style-dark";
-
-    // const linkElement = document.querySelector('link[rel="stylesheet"][href*="styles.css_style-"]');
-    // if (linkElement) {
-    //     //linkElement.href = "/django/rsshistory/css/styles.css_style-dark.css";
-    // }
-
-    const htmlElement = document.documentElement;
-    htmlElement.setAttribute("data-bs-theme", "dark");
-
-    const navbar = document.getElementById('navbar');
-    navbar.classList.remove('navbar-light', 'bg-light');
-    navbar.classList.add('navbar-dark', 'bg-dark');
+    return false
 }
 
 
@@ -424,52 +526,6 @@ async function unPackFile(zip, fileBlob, extension=".db", unpackAs='uint8array')
         }
 
         console.error("No database file found in the ZIP.");
-    } catch (error) {
-        console.error("Error reading ZIP file:", error);
-    }
-}
-
-
-function updateListData(jsonData) {
-    if (!object_list_data) {
-        object_list_data = { entries: [] };
-    }
-
-    if (!object_list_data.entries) {
-        object_list_data.entries = [];
-    }
-
-    if (jsonData && Array.isArray(jsonData.entries)) {
-        object_list_data.entries.push(...jsonData.entries);
-    } else if (jsonData && Array.isArray(jsonData)) {
-        object_list_data.entries.push(...jsonData);
-    } else {
-        console.error("Invalid JSON data: jsonData.entries is either not defined or not an array.");
-    }
-}
-
-async function unPackFileJSONS(zip) {
-    let percentComplete = 0;
-
-    try {
-        const fileNames = Object.keys(zip.files);
-        const totalFiles = fileNames.length;
-        let processedFiles = 0;
-
-        for (const fileName of fileNames) {
-            processedFiles++;
-            percentComplete = Math.round((processedFiles / totalFiles) * 100);
-
-            // You can put some progressbar here
-
-            if (fileName.endsWith('.json')) {
-                const jsonFile = await zip.files[fileName].async('string');
-                const jsonData = JSON.parse(jsonFile);
-
-                updateListData(jsonData);
-            }
-        }
-
     } catch (error) {
         console.error("Error reading ZIP file:", error);
     }
@@ -630,3 +686,69 @@ async function requestFileChunksMultipart(file_name) {
 
     return await requestFileChunksFromList(chunks);
 }
+
+
+/**
+ Specific
+*/
+
+
+function updateListData(jsonData) {
+    if (!object_list_data) {
+        object_list_data = { entries: [] };
+    }
+
+    if (!object_list_data.entries) {
+        object_list_data.entries = [];
+    }
+
+    if (jsonData && Array.isArray(jsonData.entries)) {
+        object_list_data.entries.push(...jsonData.entries);
+    } else if (jsonData && Array.isArray(jsonData)) {
+        object_list_data.entries.push(...jsonData);
+    } else {
+        console.error("Invalid JSON data: jsonData.entries is either not defined or not an array.");
+    }
+}
+
+async function unPackFileJSONS(zip) {
+    let percentComplete = 0;
+
+    try {
+        const fileNames = Object.keys(zip.files);
+        const totalFiles = fileNames.length;
+        let processedFiles = 0;
+
+        for (const fileName of fileNames) {
+            processedFiles++;
+            percentComplete = Math.round((processedFiles / totalFiles) * 100);
+
+            // You can put some progressbar here
+
+            if (fileName.endsWith('.json')) {
+                const jsonFile = await zip.files[fileName].async('string');
+                const jsonData = JSON.parse(jsonFile);
+
+                updateListData(jsonData);
+            }
+        }
+
+    } catch (error) {
+        console.error("Error reading ZIP file:", error);
+    }
+}
+
+
+/*
+module.exports = {
+    UrlLocation,
+    sanitizeLink,
+    fixStupidGoogleRedirects,
+    fixStupidYoutubeRedirects,
+    fixStupidMicrosoftSafeLinks,
+    getYouTubeVideoId,
+    getYouTubeChannelId,
+    getChannelUrl,
+    getOdyseeVideoId,
+};
+*/
