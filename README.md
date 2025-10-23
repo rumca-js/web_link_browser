@@ -1,14 +1,11 @@
 # Offline Search
 
-Perform searches without requiring an Internet connection!
+Self-hostable link browser. Uses database files for link data.
 
 # How to run
 
-- Start the server by running the provided start script.
+- Start the server by running the provided start script. There are many scripts as you can see
 - Once the server is running, open your browser and navigate to the following address:
-```
-http://localhost:8000/search.html
-```
 
 # Example
 
@@ -17,6 +14,7 @@ You can view a live example of the application at this link:
  - https://rumca-js.github.io/search
  - https://rumca-js.github.io/music
  - https://rumca-js.github.io/bookmarks
+ - https://github.com/rumca-js/Internet-Places-Database - domain viewer
 
 # Data
 
