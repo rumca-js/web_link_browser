@@ -60,8 +60,14 @@ function getSystemVersion() {
     return "0.9";
 }
 
+
 function getInitialSearchSuggestsions() {
     return [];
+}
+
+
+function notify(text) {
+    console.log(text);
 }
 
 function debug(text) {
