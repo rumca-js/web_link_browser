@@ -14,6 +14,7 @@ You can view a live example of the application at this link:
  - https://rumca-js.github.io/search
  - https://rumca-js.github.io/music
  - https://rumca-js.github.io/bookmarks
+ - https://rumca-js.github.io/feeds
  - https://github.com/rumca-js/Internet-Places-Database - domain viewer
 
 # Data
@@ -22,6 +23,8 @@ You can use this viewer to see data from other repositories. Just copy zip files
 
 For example
 
+ - https://github.com/rumca-js/RSS-Link-Database-2026
+ - https://github.com/rumca-js/RSS-Link-Database-2025
  - https://github.com/rumca-js/RSS-Link-Database-2024
  - https://github.com/rumca-js/RSS-Link-Database-2023
  - https://github.com/rumca-js/RSS-Link-Database-2022
