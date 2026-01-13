@@ -15,8 +15,10 @@
         <link href="styles/viewerzip.css?i=1" rel="stylesheet" crossorigin="anonymous">
         <script src="scripts/config_search.js?i=1"></script>
         <script  src="scripts/library.js?i=1"></script>
-        <script  src="scripts/handlers.js?i=73"></script>
+        <script  src="scripts/webtoolkit.js?i=73"></script>
         <script  src="scripts/entries_library.js?i=1"></script>
+        <script src="scripts/ui.js?i=1"></script>
+        <script src="scripts/events.js?i=1"></script>
         <script src="scripts/project.js?i=1"></script>
 
     </head>
@@ -40,6 +42,23 @@
       <p>
       The idea behind the Offline Search Initiative is to create similar curated lists, but tailored for domains and channels. This approach could simplify access to focused content without relying on intensive, online search infrastructure. It does, surely has it's downsides.
       </p>
+      <p>
+        <h1>Operators</h1>
+        <p>You can put anything you like into the search box. You can also search by individual fields, like</p>
+	<ul>
+        <li>link=youtube/com</li>
+        <li>link==youtube/com</li>
+        <li>title==youtube/com</li>
+        <li>description==youtube/com</li>
+        <li>language=fr</li>
+        <li>tag=something</li>
+	</ul>
+	<p>
+	operator '=' finds pattern anywhere. if '==' is used, the link, or search fields must match exactly the search term.
+	</p>
+      </p>
+      <div id="system-information">
+      </div>
       <div id="version">
       </div>
   </div>
