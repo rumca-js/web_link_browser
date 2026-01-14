@@ -84,7 +84,7 @@ function clearInput(focus=true) {
 }
 
 
-function registerEventHandlers() {
+function registerEventsListeners() {
 //-----------------------------------------------
 $(document).on('click', '.btnNavigation', function(e) {
     e.preventDefault();
@@ -296,7 +296,7 @@ $(document).on('keydown', "#searchInput", function(e) {
     e.preventDefault(); // Prevent browser's default quick find (especially in Firefox)
     clearInput();
   }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault(); // Prevent browser's default quick find (especially in Firefox)
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
@@ -325,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     readConfig();
     updateWidgets();
-    registerEventHandlers();
+    registerEventsListeners();
 
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('search');
