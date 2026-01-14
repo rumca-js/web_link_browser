@@ -31,7 +31,7 @@ function isStatusCodeInValid(entry) {
 
 function isEntryValid(entry) {
     if (entry.is_valid === null) {
-        if (isStatusCodeValid(entry)) || entry.manual_status_code == 200) {
+        if (isStatusCodeValid(entry) || entry.manual_status_code == 200) {
            return true;
         }
         return false;
