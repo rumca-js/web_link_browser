@@ -102,5 +102,3 @@ function getOrderPossibilities() {
         ['-stars', "Stars DESC"],
     ];
 }
-
-

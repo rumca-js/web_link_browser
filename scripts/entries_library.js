@@ -30,13 +30,27 @@ function isStatusCodeInValid(entry) {
 
 
 function isEntryValid(entry) {
-    if (entry.is_valid === null) {
+    if (entry.is_valid == null) {
         if (isStatusCodeValid(entry) || entry.manual_status_code == 200) {
            return true;
         }
         return false;
     }
     return entry.is_valid;
+}
+
+
+function isEntryInValid(entry) {
+    if (entry.is_valid == null) {
+        if (entry.manual_status_code == 200) {
+            return false;
+        }
+        if (isStatusCodeInValid(entry)) {
+           return true;
+        }
+        return false;
+    }
+    return !entry.is_valid;
 }
 
 
@@ -802,9 +816,9 @@ function getEntryDisplayStyle(entry, mark_visited=true) {
         opacity = entries_visit_alpha;
     }
 
-    if (!isEntryValid(entry))
+    if (isEntryInValid(entry))
     {
-	opacity = entries_dead_alpha;
+        opacity = entries_dead_alpha;
     }
 
     // apply
@@ -1485,6 +1499,70 @@ function getEntriesList(entries) {
     htmlOutput += `</span>`;
 
     return htmlOutput;
+}
+
+
+/** 
+ * JSON files
+ */
+
+function sortEntries(entries) {
+    console.log(`Sorting using ${sort_function}`);
+    const sortFields = [
+        'link',
+        'title',
+        'page_rating_votes',
+        'followers_count',
+        'stars',
+        'view_count',
+        'upvote_ratio',
+        'upvote_diff',
+        'upvote_view_ratio',
+    ];
+
+    const isDescending = sort_function.startsWith('-');
+    const field = isDescending ? sort_function.slice(1) : sort_function;
+
+    if (sort_function == "-date_published") {
+        entries = entries.sort((a, b) => {
+            if (a.date_published === null && b.date_published === null) {
+                return 0;
+            }
+            if (a.date_published === null) {
+                return 1;
+            }
+            if (b.date_published === null) {
+                return -1;
+            }
+            return new Date(b.date_published) - new Date(a.date_published);
+        });
+    }
+    else if (sort_function == "date_published") {
+        entries = entries.sort((a, b) => {
+            if (a.date_published === null && b.date_published === null) {
+                return 0;
+            }
+            if (a.date_published === null) {
+                return -1;
+            }
+            if (b.date_published === null) {
+                return 1;
+            }
+            return new Date(a.date_published) - new Date(b.date_published);
+        });
+    }
+    else if (sortFields.includes(field)) {
+        entries.sort((a, b) => {
+            const aVal = a[field] ?? 0;
+            const bVal = b[field] ?? 0;
+
+            return isDescending
+                ? bVal - aVal
+                : aVal - bVal;
+        });
+    }
+
+    return entries;
 }
 
 
