@@ -83,6 +83,7 @@ function getViewStyles() {
         "gallery",
         "search-engine",
         "content-centric",
+        "accordion",
         "links-only",
     ];
 }
