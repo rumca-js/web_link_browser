@@ -12,11 +12,23 @@ let debug_mode = false;
 
 let entries_direct_links = true;
 let highlight_bookmarks = false;
+let click_behavior_modal_window = true;
 let sort_function = "-page_rating_votes"; // page_rating_votes, date_published
 let default_page_size = 200;
 
 let entries_visit_alpha=1.0;
 let entries_dead_alpha=0.5;
+
+
+function getFileVersion() {
+    /* Forces refresh of the file */
+    return "64";
+}
+
+
+function getSystemVersion() {
+    return "0.9";
+}
 
 
 function getDefaultFileName() {
@@ -50,30 +62,23 @@ function getDefaultFileLocation() {
 }
 
 
-function getFileVersion() {
-    /* Forces refresh of the file */
-    return "64";
+function getEntryAPI() {
+   return `/api/entries`;
 }
 
 
-function getSystemVersion() {
-    return "0.9";
+function getEntryLocalLink(entry) {
+    return `?entry_id=${entry.id}`;
+}
+
+
+function getHomeLocation() {
+    return "/";
 }
 
 
 function getInitialSearchSuggestsions() {
     return [];
-}
-
-
-function notify(text) {
-    console.log(text);
-}
-
-function debug(text) {
-    if (debug_mode) {
-      console.log(text);
-    }
 }
 
 
@@ -103,3 +108,15 @@ function getOrderPossibilities() {
         ['-stars', "Stars DESC"],
     ];
 }
+
+
+function notify(text) {
+    console.log(text);
+}
+
+function debug(text) {
+    if (debug_mode) {
+      console.log(text);
+    }
+}
+
